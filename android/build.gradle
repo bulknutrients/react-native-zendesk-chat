@@ -1,3 +1,4 @@
+
 apply plugin: 'com.android.library'
 
 def safeExtGet(prop, fallback) {
@@ -14,19 +15,29 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
 
 repositories {
-    mavenCentral()
     google()
-    jcenter()
+    mavenCentral()
+    maven { url 'https://zendesk.jfrog.io/artifactory/repo' }
     maven { url 'https://zendesk.jfrog.io/zendesk/repo' }
+    jcenter()
 }
 
 dependencies {
     implementation "com.facebook.react:react-native:+"
 
-    // Use compatible versions
-    api 'com.zendesk:chat:3.1.0'
-    api 'com.zendesk:messaging:5.3.0'
+    // Use newer compatible versions that support MessagingActivity
+    implementation 'com.zendesk:chat:5.7.0'
+    implementation 'com.zendesk:messaging:5.3.0'
+    
+    // Add these for compatibility
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
 }
