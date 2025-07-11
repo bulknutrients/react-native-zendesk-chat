@@ -160,16 +160,49 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 			return;
 		}
 
-		// ✅ Apply tint color (replacement for theming)
+		// ✅ Enhanced color customization (replacement for theming)
 		viewController.modalPresentationStyle = UIModalPresentationFullScreen;
+
+		// Set tint color for interactive elements
 		viewController.view.tintColor = [self colorFromHexString:@"#E79024"];
 
-		viewController.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle: options[@"localizedDismissButtonTitle"] ?: @"Close"
-																						   style: UIBarButtonItemStylePlain
-																						  target: self
-																						  action: @selector(dismissChatUI)];
+		// Create close button with custom styling
+		viewController.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] 
+			initWithTitle: options[@"localizedDismissButtonTitle"] ?: @"Close"
+			style: UIBarButtonItemStylePlain
+			target: self
+			action: @selector(dismissChatUI)];
 
+		// Create navigation controller
 		UINavigationController *chatController = [[UINavigationController alloc] initWithRootViewController: viewController];
+
+		// Customize navigation bar appearance
+		UINavigationBar *navBar = chatController.navigationBar;
+
+		// Set navigation bar background color
+		navBar.barTintColor = [self colorFromHexString:@"#E79024"];
+		navBar.backgroundColor = [self colorFromHexString:@"#E79024"];
+
+		// Set navigation bar title text color
+		navBar.titleTextAttributes = @{NSForegroundColorAttributeName: [UIColor whiteColor]};
+
+		// Set navigation bar button colors
+		navBar.tintColor = [UIColor whiteColor];
+
+		// For iOS 13+ appearance customization
+		if (@available(iOS 13.0, *)) {
+			UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
+			[appearance configureWithOpaqueBackground];
+			appearance.backgroundColor = [self colorFromHexString:@"#E79024"];
+			appearance.titleTextAttributes = @{NSForegroundColorAttributeName: [UIColor whiteColor]};
+			
+			navBar.standardAppearance = appearance;
+			navBar.scrollEdgeAppearance = appearance;
+		}
+
+		// Ensure close button text is white
+		viewController.navigationItem.leftBarButtonItem.tintColor = [UIColor whiteColor];
+
 		[RCTPresentedViewController() presentViewController:chatController animated:YES completion:nil];
 	});
 }
