@@ -6,7 +6,6 @@
 #import <ChatSDK/ChatSDK.h>
 #import <ChatProvidersSDK/ChatProvidersSDK.h>
 #import <MessagingSDK/MessagingSDK.h>
-#import <CommonUISDK/CommonUISDK.h>
 
 @implementation RCTConvert (ZDKChatFormFieldStatus)
 
@@ -161,8 +160,7 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 			return;
 		}
 
-		// ✅ Apply custom theme
-		[self applyCustomTheme];
+		// ✅ Apply tint color (replacement for theming)
 		viewController.modalPresentationStyle = UIModalPresentationFullScreen;
 		viewController.view.tintColor = [self colorFromHexString:@"#E79024"];
 
@@ -174,17 +172,6 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 		UINavigationController *chatController = [[UINavigationController alloc] initWithRootViewController: viewController];
 		[RCTPresentedViewController() presentViewController:chatController animated:YES completion:nil];
 	});
-}
-
-- (void)applyCustomTheme {
-	ZDKTheme *theme = [[ZDKTheme alloc] init];
-	theme.primaryColor = [self colorFromHexString:@"#E79024"]; // your orange
-	theme.primaryTextColor = UIColor.whiteColor;
-	theme.secondaryTextColor = UIColor.whiteColor;
-	theme.inputFieldTextColor = UIColor.blackColor;
-	theme.inputFieldBackgroundColor = UIColor.whiteColor;
-	theme.messageBackgroundColor = UIColor.whiteColor;
-	[ZDKThemeManager applyTheme:theme];
 }
 
 - (UIColor *)colorFromHexString:(NSString *)hexString {
