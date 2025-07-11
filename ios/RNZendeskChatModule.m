@@ -1,11 +1,3 @@
-//
-//  RNZendeskChat.m
-//  Tasker
-//
-//  Created by Jean-Richard Lai on 11/23/15.
-//
-
-
 #import "RNZendeskChatModule.h"
 
 #import <React/RCTUtils.h>
@@ -15,7 +7,6 @@
 #import <ChatProvidersSDK/ChatProvidersSDK.h>
 #import <MessagingSDK/MessagingSDK.h>
 #import <CommonUISDK/CommonUISDK.h>
-
 
 @implementation RCTConvert (ZDKChatFormFieldStatus)
 
@@ -34,9 +25,8 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 @end
 
 @implementation RNZendeskChatModule
-// Backwards compatibility with the unnecessary setVisitorInfo method
-ZDKChatAPIConfiguration *_visitorAPIConfig;
 
+ZDKChatAPIConfiguration *_visitorAPIConfig;
 
 RCT_EXPORT_MODULE(RNZendeskChatModule);
 
@@ -61,8 +51,8 @@ RCT_EXPORT_METHOD(setVisitorInfo:(NSDictionary *)options) {
 	config.visitorInfo = [[ZDKVisitorInfo alloc] initWithName:options[@"name"]
 														email:options[@"email"]
 												  phoneNumber:options[@"phone"]];
-
-	NSLog(@"[RNZendeskChatModule] Applied visitor info: department: %@ tags: %@, email: %@, name: %@, phone: %@", config.department, config.tags, config.visitorInfo.email, config.visitorInfo.name, config.visitorInfo.phoneNumber);
+	NSLog(@"[RNZendeskChatModule] Applied visitor info: department: %@ tags: %@, email: %@, name: %@, phone: %@",
+		  config.department, config.tags, config.visitorInfo.email, config.visitorInfo.name, config.visitorInfo.phoneNumber);
 	return config;
 }
 
@@ -80,13 +70,11 @@ if (!!options) {\
 	if (options[@"botName"]) {
 		config.name = options[@"botName"];
 	}
-
 	if (options[@"botAvatarName"]) {
 		config.botAvatar = [UIImage imageNamed:@"botAvatarName"];
 	} else if (options[@"botAvatarUrl"]) {
 		config.botAvatar = [UIImage imageWithData:[NSData dataWithContentsOfURL:[NSURL URLWithString:options[@"botAvatarUrl"]]]];
 	}
-
 	return config;
 }
 
@@ -107,6 +95,7 @@ if (!!options) {\
 											  phoneNumber:phone
 											   department:department];
 }
+
 - (ZDKChatConfiguration *)chatConfigurationFromConfig:(NSDictionary*)options {
 	options = options ?: @{};
 
@@ -132,7 +121,6 @@ config.target = [RCTConvert BOOL: behaviorFlags[@"" #key] ?: @YES]
 	if (config.isPreChatFormEnabled) {
 		ZDKChatFormConfiguration * formConfig = [self preChatFormConfigurationFromConfig:options[@"preChatFormOptions"]];
 		if (!!formConfig) {
-			// Zendesk Swift Code crashes if you provide a nil form
 			config.preChatFormConfiguration = formConfig;
 		}
 	}
@@ -173,6 +161,11 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 			return;
 		}
 
+		// ✅ Apply custom theme
+		[self applyCustomTheme];
+		viewController.modalPresentationStyle = UIModalPresentationFullScreen;
+		viewController.view.tintColor = [self colorFromHexString:@"#E79024"];
+
 		viewController.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle: options[@"localizedDismissButtonTitle"] ?: @"Close"
 																						   style: UIBarButtonItemStylePlain
 																						  target: self
@@ -181,6 +174,28 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 		UINavigationController *chatController = [[UINavigationController alloc] initWithRootViewController: viewController];
 		[RCTPresentedViewController() presentViewController:chatController animated:YES completion:nil];
 	});
+}
+
+- (void)applyCustomTheme {
+	ZDKTheme *theme = [[ZDKTheme alloc] init];
+	theme.primaryColor = [self colorFromHexString:@"#E79024"]; // your orange
+	theme.primaryTextColor = UIColor.whiteColor;
+	theme.secondaryTextColor = UIColor.whiteColor;
+	theme.inputFieldTextColor = UIColor.blackColor;
+	theme.inputFieldBackgroundColor = UIColor.whiteColor;
+	theme.messageBackgroundColor = UIColor.whiteColor;
+	[ZDKThemeManager applyTheme:theme];
+}
+
+- (UIColor *)colorFromHexString:(NSString *)hexString {
+    unsigned rgbValue = 0;
+    NSScanner *scanner = [NSScanner scannerWithString:hexString];
+    [scanner setScanLocation:[hexString hasPrefix:@"#"] ? 1 : 0];
+    [scanner scanHexInt:&rgbValue];
+    return [UIColor colorWithRed:((rgbValue >> 16) & 0xFF) / 255.0
+                           green:((rgbValue >> 8) & 0xFF) / 255.0
+                            blue:(rgbValue & 0xFF) / 255.0
+                           alpha:1.0];
 }
 
 - (void) dismissChatUI {
@@ -211,7 +226,6 @@ RCT_EXPORT_METHOD(areAgentsOnline:
 				case ZDKChatAccountStatusOnline:
 					resolve(@YES);
 					break;
-
 				default:
 					resolve(@NO);
 					break;
