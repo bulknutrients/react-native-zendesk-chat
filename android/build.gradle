@@ -4,39 +4,29 @@ def safeExtGet(prop, fallback) {
   rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
 
-buildscript {
-  repositories {
-    jcenter()
-    google()
-  }
-
-  dependencies {
-    classpath 'com.android.tools.build:gradle:3.2.1'
-  }
-}
-
 android {
-    compileSdkVersion safeExtGet('compileSdkVersion', 28)
-    buildToolsVersion safeExtGet('buildToolsVersion', "28.0.3")
+    compileSdkVersion safeExtGet('compileSdkVersion', 34)
+    buildToolsVersion safeExtGet('buildToolsVersion', "34.0.0")
 
     defaultConfig {
-      minSdkVersion safeExtGet('minSdkVersion', 16)
-      targetSdkVersion safeExtGet('targetSdkVersion', 28)
-      versionCode 1
-      versionName "1.0"
+        minSdkVersion safeExtGet('minSdkVersion', 21)
+        targetSdkVersion safeExtGet('targetSdkVersion', 34)
+        versionCode 1
+        versionName "1.0"
     }
 }
 
 repositories {
-  mavenCentral()
-  jcenter()
-  google()
-  maven { url 'https://zendesk.jfrog.io/zendesk/repo' }
+    mavenCentral()
+    google()
+    jcenter()
+    maven { url 'https://zendesk.jfrog.io/zendesk/repo' }
 }
 
 dependencies {
-  implementation "com.facebook.react:react-native:+"
+    implementation "com.facebook.react:react-native:+"
 
-  api group: 'com.zendesk', name: 'chat', version: safeExtGet('zendeskChatVersion', '3.1.0')
-  api group: 'com.zendesk', name: 'messaging', version: safeExtGet('zendeskMessagingVersion', '5.3.0')
+    // Use compatible versions
+    api 'com.zendesk:chat:5.7.0'
+    api 'com.zendesk:messaging:5.3.0'
 }
