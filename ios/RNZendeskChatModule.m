@@ -20,7 +20,71 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 @end
 
+// Custom Navigation Controller to force styling
+@interface CustomZendeskNavigationController : UINavigationController
+@property (nonatomic, strong) UIColor *customBackgroundColor;
+@property (nonatomic, strong) UIColor *customTextColor;
+@end
+
+@implementation CustomZendeskNavigationController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    [self applyCustomStyling];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self applyCustomStyling];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self applyCustomStyling];
+}
+
+- (void)applyCustomStyling {
+    if (!self.customBackgroundColor || !self.customTextColor) return;
+    
+    UINavigationBar *navBar = self.navigationBar;
+    
+    // Force the background color
+    navBar.barTintColor = self.customBackgroundColor;
+    navBar.backgroundColor = self.customBackgroundColor;
+    navBar.translucent = NO;
+    
+    // Set text colors
+    navBar.titleTextAttributes = @{NSForegroundColorAttributeName: self.customTextColor};
+    navBar.tintColor = self.customTextColor;
+    
+    // For iOS 13+
+    if (@available(iOS 13.0, *)) {
+        UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
+        [appearance configureWithOpaqueBackground];
+        appearance.backgroundColor = self.customBackgroundColor;
+        appearance.titleTextAttributes = @{NSForegroundColorAttributeName: self.customTextColor};
+        appearance.largeTitleTextAttributes = @{NSForegroundColorAttributeName: self.customTextColor};
+        
+        navBar.standardAppearance = appearance;
+        navBar.scrollEdgeAppearance = appearance;
+        navBar.compactAppearance = appearance;
+        if (@available(iOS 15.0, *)) {
+            navBar.compactScrollEdgeAppearance = appearance;
+        }
+    }
+    
+    // Force status bar style
+    [self setNeedsStatusBarAppearanceUpdate];
+}
+
+- (UIStatusBarStyle)preferredStatusBarStyle {
+    return UIStatusBarStyleLightContent; // White status bar text
+}
+
+@end
+
 @interface RNZendeskChatModule ()
+@property (nonatomic, strong) CustomZendeskNavigationController *chatController;
 @end
 
 @implementation RNZendeskChatModule
@@ -160,7 +224,7 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 			return;
 		}
 
-		// ✅ Enhanced color customization (replacement for theming)
+		// ✅ Enhanced color customization with persistent styling
 		viewController.modalPresentationStyle = UIModalPresentationFullScreen;
 
 		// Set tint color for interactive elements
@@ -173,37 +237,27 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 			target: self
 			action: @selector(dismissChatUI)];
 
-		// Create navigation controller
-		UINavigationController *chatController = [[UINavigationController alloc] initWithRootViewController: viewController];
+		// Create custom navigation controller that enforces styling
+		self.chatController = [[CustomZendeskNavigationController alloc] initWithRootViewController: viewController];
+		self.chatController.customBackgroundColor = [self colorFromHexString:@"#E79024"];
+		self.chatController.customTextColor = [UIColor whiteColor];
 
-		// Customize navigation bar appearance
-		UINavigationBar *navBar = chatController.navigationBar;
+		// Apply initial styling
+		[self.chatController applyCustomStyling];
 
-		// Set navigation bar background color
-		navBar.barTintColor = [self colorFromHexString:@"#E79024"];
-		navBar.backgroundColor = [self colorFromHexString:@"#E79024"];
+		// Set up a timer to reapply styling periodically (as a fallback)
+		[NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer * _Nonnull timer) {
+			if (self.chatController.presentingViewController == nil) {
+				[timer invalidate];
+				return;
+			}
+			[self.chatController applyCustomStyling];
+		}];
 
-		// Set navigation bar title text color
-		navBar.titleTextAttributes = @{NSForegroundColorAttributeName: [UIColor whiteColor]};
-
-		// Set navigation bar button colors
-		navBar.tintColor = [UIColor whiteColor];
-
-		// For iOS 13+ appearance customization
-		if (@available(iOS 13.0, *)) {
-			UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
-			[appearance configureWithOpaqueBackground];
-			appearance.backgroundColor = [self colorFromHexString:@"#E79024"];
-			appearance.titleTextAttributes = @{NSForegroundColorAttributeName: [UIColor whiteColor]};
-			
-			navBar.standardAppearance = appearance;
-			navBar.scrollEdgeAppearance = appearance;
-		}
-
-		// Ensure close button text is white
-		viewController.navigationItem.leftBarButtonItem.tintColor = [UIColor whiteColor];
-
-		[RCTPresentedViewController() presentViewController:chatController animated:YES completion:nil];
+		[RCTPresentedViewController() presentViewController:self.chatController animated:YES completion:^{
+			// Apply styling one more time after presentation
+			[self.chatController applyCustomStyling];
+		}];
 	});
 }
 
@@ -220,6 +274,7 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 
 - (void) dismissChatUI {
 	[RCTPresentedViewController() dismissViewControllerAnimated:YES completion:nil];
+	self.chatController = nil; // Clean up reference
 }
 
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
