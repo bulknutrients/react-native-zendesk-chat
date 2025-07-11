@@ -27,6 +27,6 @@ dependencies {
     implementation "com.facebook.react:react-native:+"
 
     // Use compatible versions
-    api 'com.zendesk:chat:5.7.0'
+    api 'com.zendesk:chat:3.1.0'
     api 'com.zendesk:messaging:5.3.0'
 }
