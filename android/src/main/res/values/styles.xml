@@ -1,0 +1,9 @@
+<resources>
+  <style name="ZendeskCustomToolbarTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Customize your toolbar theme here -->
+    <item name="colorPrimary">#E79024</item>
+    <item name="colorPrimaryDark">#E79024</item>
+    <item name="colorAccent">#007300</item>
+    <item name="android:textColorPrimary">#FFFFFF</item>
+  </style>
+</resources>
