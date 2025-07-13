@@ -28,8 +28,8 @@ import zendesk.chat.ProfileProvider;
 import zendesk.chat.PreChatFormFieldStatus;
 import zendesk.chat.PushNotificationsProvider;
 import zendesk.chat.VisitorInfo;
-import zendesk.messaging.MessagingActivity;
-import zendesk.messaging.MessagingConfiguration;
+import zendesk.classic.messaging.MessagingActivity;
+import zendesk.classic.messaging.MessagingConfiguration;
 import com.zendesk.service.ErrorResponse;
 import com.zendesk.service.ZendeskCallback;
 
