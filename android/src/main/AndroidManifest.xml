@@ -1,3 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.taskrabbit.zendesk" >
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.taskrabbit.zendesk">
+
+    <application>
+        <activity
+            android:name="zendesk.classic.messaging.MessagingActivity"
+            android:theme="@style/ZendeskCustomToolbarTheme" />
+    </application>
+
 </manifest>
