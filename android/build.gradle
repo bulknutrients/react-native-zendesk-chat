@@ -6,36 +6,37 @@ def safeExtGet(prop, fallback) {
 
 buildscript {
   repositories {
+    jcenter()
     google()
-    mavenCentral()
   }
 
   dependencies {
-    classpath 'com.android.tools.build:gradle:8.4.0' // Latest stable Gradle plugin (July 2025)
+    classpath 'com.android.tools.build:gradle:3.2.1'
   }
 }
 
 android {
-    compileSdkVersion safeExtGet('compileSdkVersion', 34)
-    buildToolsVersion safeExtGet('buildToolsVersion', "34.0.0")
+    compileSdkVersion safeExtGet('compileSdkVersion', 28)
+    buildToolsVersion safeExtGet('buildToolsVersion', "28.0.3")
 
     defaultConfig {
-      minSdkVersion safeExtGet('minSdkVersion', 21)
-      targetSdkVersion safeExtGet('targetSdkVersion', 34)
+      minSdkVersion safeExtGet('minSdkVersion', 16)
+      targetSdkVersion safeExtGet('targetSdkVersion', 28)
       versionCode 1
       versionName "1.0"
     }
 }
 
 repositories {
-  google()
   mavenCentral()
+  jcenter()
+  google()
   maven { url 'https://zendesk.jfrog.io/zendesk/repo' }
 }
 
 dependencies {
   implementation "com.facebook.react:react-native:+"
 
-  api group: 'com.zendesk', name: 'chat', version: '5.4.0'
-  api group: 'com.zendesk', name: 'messaging', version: '6.4.0'
+  api group: 'com.zendesk', name: 'chat', version: '3.7.0'
+  api group: 'com.zendesk', name: 'messaging', version: '5.7.0'
 }
