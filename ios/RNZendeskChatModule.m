@@ -126,8 +126,8 @@ if (!!options) {\
 	NSLog(@"[RNZendeskChatModule] Invalid %@ -- expected a config hash", what);\
 }
 
-- (ZDKMessagingConfiguration *)messagingConfigurationFromConfig:(NSDictionary*)options {
-	ZDKMessagingConfiguration *config = [[ZDKMessagingConfiguration alloc] init];
+- (ZDKClassicMessagingConfiguration *)messagingConfigurationFromConfig:(NSDictionary*)options {
+	ZDKClassicMessagingConfiguration *config = [[ZDKClassicMessagingConfiguration alloc] init];
 	if (!options || ![options isKindOfClass:NSDictionary.class]) {
 		RNZDKConfigHashErrorLog(options, @"MessagingConfiguration config options");
 		return config;
@@ -231,9 +231,9 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
             }
         }
 
-		ZDKMessagingConfiguration *messagingConfig = [self messagingConfigurationFromConfig: options[@"messagingOptions"]];
+		ZDKClassicMessagingConfiguration *messagingConfig = [self messagingConfigurationFromConfig: options[@"messagingOptions"]];
 
-		UIViewController *viewController = [ZDKMessaging.instance buildUIWithEngines:self.chatEngines
+		UIViewController *viewController = [ZDKClassicMessaging.instance buildUIWithEngines:self.chatEngines
 																 configs:@[chatConfig, messagingConfig]
 																   error:&error];
 		if (!!error) {
