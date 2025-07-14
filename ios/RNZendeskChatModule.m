@@ -85,6 +85,8 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 @interface RNZendeskChatModule ()
 @property (nonatomic, strong) CustomZendeskNavigationController *chatController;
+@property (nonatomic, strong) NSTimer *stylingTimer;
+@property (nonatomic, strong) NSArray *chatEngines; // Store engines to reuse
 @end
 
 @implementation RNZendeskChatModule
@@ -190,6 +192,11 @@ config.target = [RCTConvert BOOL: behaviorFlags[@"" #key] ?: @YES]
 	return config;
 }
 
+// Helper method to check if chat is already active
+- (BOOL)isChatActive {
+    return self.chatController && self.chatController.presentingViewController;
+}
+
 RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 	if (!options || ![options isKindOfClass: NSDictionary.class]) {
 		if (!!options){
@@ -198,7 +205,13 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 		options = NSDictionary.dictionary;
 	}
 
-	dispatch_sync(dispatch_get_main_queue(), ^{
+	dispatch_async(dispatch_get_main_queue(), ^{
+        // Check if chat is already active
+        if ([self isChatActive]) {
+            NSLog(@"[RNZendeskChatModule] Chat already active, bringing to front");
+            // Optionally bring existing chat to front or do nothing
+            return;
+        }
 
 		ZDKChat.instance.configuration = [self applyVisitorInfo:options
 													 intoConfig: _visitorAPIConfig ?: [[ZDKChatAPIConfiguration alloc] init]];
@@ -206,17 +219,21 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 		ZDKChatConfiguration * chatConfig = [self chatConfigurationFromConfig:options];
 
 		NSError *error = nil;
-		NSArray *engines = @[
-			[ZDKChatEngine engineAndReturnError:&error]
-		];
-		if (!!error) {
-			NSLog(@"[RNZendeskChatModule] Internal Error loading ZDKChatEngine %@", error);
-			return;
-		}
+        
+        // Reuse engines if they exist and are valid
+        if (!self.chatEngines) {
+            self.chatEngines = @[
+                [ZDKChatEngine engineAndReturnError:&error]
+            ];
+            if (!!error) {
+                NSLog(@"[RNZendeskChatModule] Internal Error loading ZDKChatEngine %@", error);
+                return;
+            }
+        }
 
 		ZDKMessagingConfiguration *messagingConfig = [self messagingConfigurationFromConfig: options[@"messagingOptions"]];
 
-		UIViewController *viewController = [ZDKMessaging.instance buildUIWithEngines:engines
+		UIViewController *viewController = [ZDKMessaging.instance buildUIWithEngines:self.chatEngines
 																 configs:@[chatConfig, messagingConfig]
 																   error:&error];
 		if (!!error) {
@@ -245,10 +262,15 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 		// Apply initial styling
 		[self.chatController applyCustomStyling];
 
+		// Clean up any existing timer
+		[self.stylingTimer invalidate];
+		self.stylingTimer = nil;
+
 		// Set up a timer to reapply styling periodically (as a fallback)
-		[NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer * _Nonnull timer) {
+		self.stylingTimer = [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer * _Nonnull timer) {
 			if (self.chatController.presentingViewController == nil) {
 				[timer invalidate];
+				self.stylingTimer = nil;
 				return;
 			}
 			[self.chatController applyCustomStyling];
@@ -273,8 +295,23 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 }
 
 - (void) dismissChatUI {
-	[RCTPresentedViewController() dismissViewControllerAnimated:YES completion:nil];
-	self.chatController = nil; // Clean up reference
+    // Clean up timer first
+    [self.stylingTimer invalidate];
+    self.stylingTimer = nil;
+    
+    // Dismiss the chat
+	[RCTPresentedViewController() dismissViewControllerAnimated:YES completion:^{
+        // Clean up references after dismissal
+        self.chatController = nil;
+    }];
+}
+
+// Add method to completely reset chat state if needed
+- (void)resetChatState {
+    [self.stylingTimer invalidate];
+    self.stylingTimer = nil;
+    self.chatController = nil;
+    self.chatEngines = nil;
 }
 
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
@@ -286,7 +323,7 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
 }
 
 RCT_EXPORT_METHOD(registerPushToken:(NSString *)token) {
-	dispatch_sync(dispatch_get_main_queue(), ^{
+	dispatch_async(dispatch_get_main_queue(), ^{
 		[ZDKChat registerPushTokenString:token];
 	});
 }
@@ -309,6 +346,11 @@ RCT_EXPORT_METHOD(areAgentsOnline:
 			reject(@"no-available-zendesk-account", @"DevError: Not connected to Zendesk or network issue", error);
 		}
 	}];
+}
+
+// Add dealloc to clean up resources
+- (void)dealloc {
+    [self resetChatState];
 }
 
 @end

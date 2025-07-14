@@ -234,7 +234,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         String logHint = "startChat(behaviorFlags)";
 
         return b.withPreChatFormEnabled(getBooleanOrDefault(options, "showPreChatForm", logHint, defaultValue))
-                .withTranscriptEnabled(getBooleanOrDefault(options, "showChatTranscriptPrompt", logHint, defaultValue))
+                .withTranscriptEnabled(false)
                 .withOfflineFormEnabled(getBooleanOrDefault(options, "showOfflineForm", logHint, defaultValue))
                 .withAgentAvailabilityEnabled(
                         getBooleanOrDefault(options, "showAgentAvailability", logHint, defaultValue));
