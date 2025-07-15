@@ -20,6 +20,7 @@ import zendesk.chat.AccountStatus;
 import zendesk.chat.Chat;
 import zendesk.chat.ChatConfiguration;
 import zendesk.chat.ChatEngine;
+import zendesk.chat.ChatMenuAction;
 import zendesk.chat.ChatSessionStatus;
 import zendesk.chat.ChatState;
 import zendesk.chat.ObservationScope;
