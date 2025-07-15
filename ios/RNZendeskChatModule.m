@@ -182,8 +182,6 @@ config.target = [RCTConvert BOOL: behaviorFlags[@"" #key] ?: @YES]
 	ParseBehaviorFlag(showAgentAvailability, isAgentAvailabilityEnabled);
 #undef ParseBehaviorFlag
 
-    config.isFileSharingEnabled = YES;
-
 	if (config.isPreChatFormEnabled) {
 		ZDKChatFormConfiguration * formConfig = [self preChatFormConfigurationFromConfig:options[@"preChatFormOptions"]];
 		if (!!formConfig) {
@@ -215,6 +213,8 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 
 		ZDKChat.instance.configuration = [self applyVisitorInfo:options
 													 intoConfig: _visitorAPIConfig ?: [[ZDKChatAPIConfiguration alloc] init]];
+													 
+        ZDKChatSettings.isFileSendingEnabled = YES;
 
 		ZDKChatConfiguration * chatConfig = [self chatConfigurationFromConfig:options];
 
