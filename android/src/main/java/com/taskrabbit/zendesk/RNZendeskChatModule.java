@@ -20,7 +20,6 @@ import zendesk.chat.AccountStatus;
 import zendesk.chat.Chat;
 import zendesk.chat.ChatConfiguration;
 import zendesk.chat.ChatEngine;
-import zendesk.chat.ChatMenuAction;
 import zendesk.chat.ChatSessionStatus;
 import zendesk.chat.ChatState;
 import zendesk.chat.ObservationScope;
@@ -239,7 +238,6 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                 .withOfflineFormEnabled(getBooleanOrDefault(options, "showOfflineForm", logHint, defaultValue))
                 .withAgentAvailabilityEnabled(
                         getBooleanOrDefault(options, "showAgentAvailability", logHint, defaultValue))
-                .withMenuItems(ChatMenuAction.END_CHAT);
     }
 
     private ChatConfiguration.Builder loadPreChatFormConfiguration(ChatConfiguration.Builder b, ReadableMap options) {
