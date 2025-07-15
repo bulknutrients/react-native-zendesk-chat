@@ -86,6 +86,7 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 @interface RNZendeskChatModule ()
 @property (nonatomic, strong) CustomZendeskNavigationController *chatController;
 @property (nonatomic, strong) NSTimer *stylingTimer;
+@property (nonatomic, strong) NSArray *chatEngines; // Store engines to reuse
 @end
 
 @implementation RNZendeskChatModule
@@ -208,29 +209,31 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
         // Check if chat is already active
         if ([self isChatActive]) {
             NSLog(@"[RNZendeskChatModule] Chat already active, bringing to front");
+            // Optionally bring existing chat to front or do nothing
             return;
         }
 
 		ZDKChat.instance.configuration = [self applyVisitorInfo:options
 													 intoConfig: _visitorAPIConfig ?: [[ZDKChatAPIConfiguration alloc] init]];
-													 
+
 		ZDKChatConfiguration * chatConfig = [self chatConfigurationFromConfig:options];
 
 		NSError *error = nil;
         
-        // CRITICAL FIX: Always create fresh engines to avoid state contamination
-        NSArray *engines = @[
-            [ZDKChatEngine engineAndReturnError:&error]
-        ];
-        
-        if (!!error) {
-            NSLog(@"[RNZendeskChatModule] Internal Error loading ZDKChatEngine %@", error);
-            return;
+        // Reuse engines if they exist and are valid
+        if (!self.chatEngines) {
+            self.chatEngines = @[
+                [ZDKChatEngine engineAndReturnError:&error]
+            ];
+            if (!!error) {
+                NSLog(@"[RNZendeskChatModule] Internal Error loading ZDKChatEngine %@", error);
+                return;
+            }
         }
 
 		ZDKClassicMessagingConfiguration *messagingConfig = [self messagingConfigurationFromConfig: options[@"messagingOptions"]];
 
-		UIViewController *viewController = [ZDKClassicMessaging.instance buildUIWithEngines:engines
+		UIViewController *viewController = [ZDKClassicMessaging.instance buildUIWithEngines:self.chatEngines
 																 configs:@[chatConfig, messagingConfig]
 																   error:&error];
 		if (!!error) {
@@ -308,16 +311,7 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
     [self.stylingTimer invalidate];
     self.stylingTimer = nil;
     self.chatController = nil;
-}
-
-// Add method to end current chat session
-RCT_EXPORT_METHOD(endChat) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if ([self isChatActive]) {
-            [self dismissChatUI];
-        }
-        [self resetChatState];
-    });
+    self.chatEngines = nil;
 }
 
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
