@@ -237,7 +237,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                 .withTranscriptEnabled(false)
                 .withOfflineFormEnabled(getBooleanOrDefault(options, "showOfflineForm", logHint, defaultValue))
                 .withAgentAvailabilityEnabled(
-                        getBooleanOrDefault(options, "showAgentAvailability", logHint, defaultValue))
+                        getBooleanOrDefault(options, "showAgentAvailability", logHint, defaultValue));
     }
 
     private ChatConfiguration.Builder loadPreChatFormConfiguration(ChatConfiguration.Builder b, ReadableMap options) {
