@@ -182,6 +182,8 @@ config.target = [RCTConvert BOOL: behaviorFlags[@"" #key] ?: @YES]
 	ParseBehaviorFlag(showAgentAvailability, isAgentAvailabilityEnabled);
 #undef ParseBehaviorFlag
 
+    config.isFileSharingEnabled = YES;
+
 	if (config.isPreChatFormEnabled) {
 		ZDKChatFormConfiguration * formConfig = [self preChatFormConfigurationFromConfig:options[@"preChatFormOptions"]];
 		if (!!formConfig) {
