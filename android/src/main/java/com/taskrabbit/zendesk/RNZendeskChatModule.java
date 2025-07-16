@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.util.Log;
 
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
@@ -13,15 +14,19 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableType;
+import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import zendesk.chat.Account;
 import zendesk.chat.AccountStatus;
 import zendesk.chat.Chat;
 import zendesk.chat.ChatConfiguration;
 import zendesk.chat.ChatEngine;
+import zendesk.chat.ChatLog;
 import zendesk.chat.ChatSessionStatus;
 import zendesk.chat.ChatState;
+import zendesk.chat.ConnectionStatus;
 import zendesk.chat.ObservationScope;
 import zendesk.chat.Observer;
 import zendesk.chat.ProfileProvider;
@@ -35,16 +40,113 @@ import com.zendesk.service.ZendeskCallback;
 
 import java.lang.String;
 import java.util.ArrayList;
+import java.util.List;
+
+// Message Counter Implementation for Android
+class UnreadMessageCounter {
+    public interface UnreadMessageCounterListener {
+        void onUnreadCountUpdated(int unreadCount);
+    }
+
+    private UnreadMessageCounterListener unreadMessageCounterListener;
+    private boolean shouldCount = false;
+    private String lastReadChatLogId = null;
+    private String lastChatLogId = null;
+    private ObservationScope observationScope;
+
+    public UnreadMessageCounter(UnreadMessageCounterListener listener) {
+        this.unreadMessageCounterListener = listener;
+        this.observationScope = new ObservationScope();
+        
+        // Set up chat state observer
+        Chat.INSTANCE.providers().chatProvider().observeChatState(observationScope, new Observer<ChatState>() {
+            @Override
+            public void update(ChatState chatState) {
+                if (chatState != null && !chatState.getChatLogs().isEmpty()) {
+                    if (shouldCount && lastReadChatLogId != null) {
+                        updateCounter(chatState.getChatLogs(), lastReadChatLogId);
+                    }
+                    lastChatLogId = chatState.getChatLogs().get(
+                        chatState.getChatLogs().size() - 1
+                    ).getId();
+                }
+            }
+        });
+    }
+
+    public void startCounting() {
+        shouldCount = true;
+        if (lastChatLogId != null) {
+            lastReadChatLogId = lastChatLogId;
+        }
+    }
+
+    public void stopCounting() {
+        shouldCount = false;
+        lastReadChatLogId = null;
+        if (unreadMessageCounterListener != null) {
+            unreadMessageCounterListener.onUnreadCountUpdated(0);
+        }
+    }
+
+    public void markAsRead() {
+        if (lastChatLogId != null) {
+            lastReadChatLogId = lastChatLogId;
+        }
+        if (unreadMessageCounterListener != null) {
+            unreadMessageCounterListener.onUnreadCountUpdated(0);
+        }
+    }
+
+    private synchronized void updateCounter(List<ChatLog> chatLogs, String lastReadId) {
+        int unreadCount = 0;
+        boolean foundLastRead = false;
+        
+        for (ChatLog chatLog : chatLogs) {
+            if (chatLog.getId().equals(lastReadId)) {
+                foundLastRead = true;
+                continue;
+            }
+            if (foundLastRead && chatLog.getChatParticipant() != null && 
+                chatLog.getChatParticipant().toString().equals("AGENT")) {
+                unreadCount++;
+            }
+        }
+        
+        if (unreadMessageCounterListener != null) {
+            unreadMessageCounterListener.onUnreadCountUpdated(unreadCount);
+        }
+    }
+
+    public void cleanup() {
+        if (observationScope != null) {
+            observationScope.cancel();
+        }
+    }
+}
 
 public class RNZendeskChatModule extends ReactContextBaseJavaModule {
     private static final String TAG = "[RNZendeskChatModule]";
 
     private ArrayList<String> currentUserTags = new ArrayList();
-
     private ReadableMap pendingVisitorInfo = null;
     private ObservationScope observationScope = null;
+    
+    // Message Counter Properties
+    private UnreadMessageCounter messageCounter;
+    private boolean isUnreadMessageCounterActive = false;
+    private int currentUnreadCount = 0;
 
-    // private class Converters {
+    // Event emission helper
+    private void sendEvent(String eventName, WritableMap params) {
+        if (mReactContext.hasActiveCatalystInstance()) {
+            mReactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                .emit(eventName, params);
+        }
+    }
+
+    // Utility methods (keeping existing ones)
     public static ArrayList<String> getArrayListOfStrings(ReadableMap options, String key, String functionHint) {
         ArrayList<String> result = new ArrayList();
 
@@ -86,7 +188,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         if (!options.hasKey(key)) {
             return defaultValue;
         }
-        if (options.getType(key) != ReadableType.String) {
+        if (options.getType(key) != ReadableType.Number) {
             Log.e(RNZendeskChatModule.TAG,
                     "wrong type for key '" + key + "' when processing " + functionHint + ", expected an Integer.");
             return defaultValue;
@@ -152,21 +254,35 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         String value = input.getString(key);
         if (((mReactContext.getApplicationInfo().flags
             & ApplicationInfo.FLAG_DEBUGGABLE) == 0)) {
-            // We don't want other Apps to monitor our app's production logs for this debug information.
-            // If you patch the app to enable it yourself, that's your choice!
             value = "<stripped>";
         }
 
         Log.d(TAG, "selectVisitorInfo to set later " + key + " '" + value + "'");
         output.putString(key, input.getString(key));
     }
-    // }
 
     private ReactContext mReactContext;
 
     public RNZendeskChatModule(ReactApplicationContext reactContext) {
         super(reactContext);
         mReactContext = reactContext;
+        
+        // Initialize message counter
+        initializeMessageCounter();
+    }
+
+    private void initializeMessageCounter() {
+        messageCounter = new UnreadMessageCounter(new UnreadMessageCounter.UnreadMessageCounterListener() {
+            @Override
+            public void onUnreadCountUpdated(int unreadCount) {
+                currentUnreadCount = unreadCount;
+                if (isUnreadMessageCounterActive) {
+                    WritableMap params = Arguments.createMap();
+                    params.putInt("count", unreadCount);
+                    sendEvent("unreadMessageCountChanged", params);
+                }
+            }
+        });
     }
 
     @Override
@@ -178,6 +294,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
     public void setVisitorInfo(ReadableMap options) {
         _setVisitorInfo(options);
     }
+    
     private boolean _setVisitorInfo(ReadableMap options) {
         boolean anyValuesWereSet = false;
         VisitorInfo.Builder builder = VisitorInfo.builder();
@@ -207,18 +324,9 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         }
 
         Chat.INSTANCE.providers().profileProvider().setVisitorInfo(visitorInfo, null);
-
         return anyValuesWereSet;
     }
 
-    // Unfortunately, react-native: android doesn't support the following
-    // - Java's Method Overloading
-    // - automatically providing null to undefined parameters (like iOS)
-    //
-    // As a result, we need to guarantee this is always called with 2 parameters from JS
-    //
-    // This method has been renamed to make that clear, and index.js is adding the
-    //  correct interface for init() at runtime
     @ReactMethod
     public void _initWith2Args(String key, String appId) {
         if (appId != null) {
@@ -226,7 +334,45 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         } else {
             Chat.INSTANCE.init(mReactContext, key);
         }
-        Log.d(TAG, "Chat.INSTANCE was properly initialized from JS.");
+        
+        // Auto-enable message counter immediately after initialization
+        enableMessageCounter(true);
+        Log.d(TAG, "Chat.INSTANCE initialized and message counter enabled automatically");
+    }
+
+    // Message Counter Methods
+    @ReactMethod
+    public void enableMessageCounter(boolean enabled) {
+        isUnreadMessageCounterActive = enabled;
+        if (enabled) {
+            if (messageCounter != null) {
+                messageCounter.startCounting();
+            }
+            Log.d(TAG, "Message counter enabled");
+        } else {
+            if (messageCounter != null) {
+                messageCounter.stopCounting();
+            }
+            Log.d(TAG, "Message counter disabled");
+        }
+    }
+
+    @ReactMethod
+    public void getUnreadMessageCount(Promise promise) {
+        promise.resolve(currentUnreadCount);
+    }
+
+    @ReactMethod
+    public void resetUnreadMessageCount() {
+        if (messageCounter != null) {
+            messageCounter.markAsRead();
+        }
+        currentUnreadCount = 0;
+        if (isUnreadMessageCounterActive) {
+            WritableMap params = Arguments.createMap();
+            params.putInt("count", 0);
+            sendEvent("unreadMessageCountChanged", params);
+        }
     }
 
     private ChatConfiguration.Builder loadBehaviorFlags(ChatConfiguration.Builder b, ReadableMap options) {
@@ -247,7 +393,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                 .withPhoneFieldStatus(getFieldStatusOrDefault(options, "phone", defaultValue))
                 .withDepartmentFieldStatus(getFieldStatusOrDefault(options, "department", defaultValue));
     }
-    // Produces a ReadableMap suitable for passing to setVisitorInfo that only has the fields that won't be asked by the preChatForm
+
     private ReadableMap hiddenVisitorInfoData(ReadableMap allVisitorInfo, ReadableMap preChatFormOptions) {
         WritableNativeMap output = new WritableNativeMap();
         selectVisitorInfoFieldIfPreChatFormHidden("email", output, allVisitorInfo, preChatFormOptions);
@@ -257,10 +403,6 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
     }
 
     private void loadTags(ReadableMap options) {
-        // ZendeskChat Android treats the tags persistently, so you have to add/remove
-        // as things change -- aka doing a diff :-(
-        // ZendeskChat iOS just lets you override the full array so this isn't
-        // necessary on that side.
         if (Chat.INSTANCE.providers() == null) {
             Log.e(TAG,
                     "Zendesk Internals are undefined -- did you forget to call RNZendeskModule.init(<account_key>)?");
@@ -273,8 +415,8 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         ArrayList<String> allProvidedTags = RNZendeskChatModule.getArrayListOfStrings(options, "tags", "startChat");
         ArrayList<String> newlyIntroducedTags = (ArrayList<String>) allProvidedTags.clone();
 
-        newlyIntroducedTags.remove(activeTags); // Now just includes tags to add
-        currentUserTags.removeAll(allProvidedTags); // Now just includes tags to delete
+        newlyIntroducedTags.removeAll(activeTags);
+        currentUserTags.removeAll(allProvidedTags);
 
         if (!currentUserTags.isEmpty()) {
             profileProvider.removeVisitorTags(currentUserTags, null);
@@ -310,6 +452,16 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                     "Zendesk Internals are undefined -- did you forget to call RNZendeskModule.init(<account_key>)?");
             return;
         }
+
+        // Emit chat will show event
+        WritableMap chatWillShowParams = Arguments.createMap();
+        sendEvent("chatWillShow", chatWillShowParams);
+
+        // Temporarily pause message counter while chat is active
+        if (messageCounter != null) {
+            messageCounter.stopCounting();
+        }
+
         pendingVisitorInfo = null;
         boolean didSetVisitorInfo = _setVisitorInfo(options);
 
@@ -340,12 +492,41 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             setupChatStartObserverToSetVisitorInfo();
         }
 
+        // Set up observer for when chat closes
+        setupChatCloseObserver();
+
         Activity activity = getCurrentActivity();
         if (activity != null) {
             messagingBuilder.withEngines(ChatEngine.engine()).show(activity, chatConfig);
         } else {
             Log.e(TAG, "Could not load getCurrentActivity -- no UI can be displayed without it.");
         }
+    }
+
+    private void setupChatCloseObserver() {
+        // Create observation scope for chat lifecycle
+        final ObservationScope chatObservationScope = new ObservationScope();
+        
+        Chat.INSTANCE.providers().chatProvider().observeChatState(chatObservationScope, new Observer<ChatState>() {
+            @Override
+            public void update(ChatState chatState) {
+                ChatSessionStatus chatStatus = chatState.getChatSessionStatus();
+                
+                if (chatStatus == ChatSessionStatus.ENDED) {
+                    // Chat has ended, emit close event and restart message counter
+                    WritableMap chatWillCloseParams = Arguments.createMap();
+                    sendEvent("chatWillClose", chatWillCloseParams);
+                    
+                    // Always restart message counter when chat ends
+                    if (messageCounter != null) {
+                        messageCounter.startCounting();
+                    }
+                    
+                    // Clean up this observer
+                    chatObservationScope.cancel();
+                }
+            }
+        });
     }
 
     @ReactMethod
@@ -357,28 +538,22 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         }
     }
 
-    // https://support.zendesk.com/hc/en-us/articles/360055343673
     public void setupChatStartObserverToSetVisitorInfo(){
-        // Create a temporary observation scope until the chat is started.
         observationScope = new ObservationScope();
         Chat.INSTANCE.providers().chatProvider().observeChatState(observationScope, new Observer<ChatState>() {
             @Override
             public void update(ChatState chatState) {
                 ChatSessionStatus chatStatus = chatState.getChatSessionStatus();
-                // Status achieved after the PreChatForm is completed
                 if (chatStatus == ChatSessionStatus.STARTED) {
-                    observationScope.cancel(); // Once the chat is started disable the observation
-                    observationScope = null; // Clean things up to avoid confusion.
+                    observationScope.cancel();
+                    observationScope = null;
                     if (pendingVisitorInfo == null) { return; }
 
-                    // Update the information MID chat here. All info but Department can be updated
-                    // Add here the code to set the selected visitor info *after* the preChatForm is complete
                     _setVisitorInfo(pendingVisitorInfo);
                     pendingVisitorInfo = null;
 
                     Log.d(TAG, "Set the VisitorInfo after chat start");
                 } else {
-                    // There are few other statuses that you can observe but they are unused in this example
                     Log.d(TAG, "[observerSetup] - ChatSessionUpdate -> (unused) status : " + chatStatus.toString());
                 }
             }
@@ -408,5 +583,15 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                 promise.reject("no-available-zendesk-account", "DevError: Not connected to Zendesk or network issue");
             }
         });
+    }
+
+    // Clean up resources
+    public void onCatalystInstanceDestroy() {
+        if (messageCounter != null) {
+            messageCounter.cleanup();
+        }
+        if (observationScope != null) {
+            observationScope.cancel();
+        }
     }
 }

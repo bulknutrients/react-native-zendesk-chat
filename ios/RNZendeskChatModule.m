@@ -289,17 +289,7 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
     if (self) {
         // Initialize messaging delegate
         [ZDKMessaging.instance setDelegate:self];
-        
-        // Initialize message counter
-        if (ZDKChat.instance) {
-            self.messageCounter = [[ZendeskChatMessageCounter alloc] initWithChat:ZDKChat.instance];
-            
-            __weak typeof(self) weakSelf = self;
-            self.messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
-                [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
-                                       body:@{@"count": @(numberOfUnreadMessages)}];
-            };
-        }
+        self.isUnreadMessageCounterActive = NO;
     }
     return self;
 }
@@ -308,6 +298,7 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
     return @[@"unreadMessageCountChanged", @"chatWillShow", @"chatWillClose"];
 }
 
+// Auto-enable message counter when it's created
 - (void)setIsUnreadMessageCounterActive:(BOOL)isUnreadMessageCounterActive {
     _isUnreadMessageCounterActive = isUnreadMessageCounterActive;
     self.messageCounter.isActive = isUnreadMessageCounterActive;
@@ -498,13 +489,7 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 	});
 }
 
-// Message Counter Methods
-RCT_EXPORT_METHOD(enableMessageCounter:(BOOL)enabled) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.isUnreadMessageCounterActive = enabled;
-    });
-}
-
+// Message Counter Methods - Always enabled after initialization
 RCT_EXPORT_METHOD(getUnreadMessageCount:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -523,12 +508,16 @@ RCT_EXPORT_METHOD(resetUnreadMessageCount) {
     switch (event) {
         case ZDKMessagingUIEventViewWillAppear:
             [self sendEventWithName:@"chatWillShow" body:@{}];
+            // Temporarily pause counter while actively chatting
+            self.messageCounter.isActive = NO;
             break;
         case ZDKMessagingUIEventViewWillDisappear:
             [self.messageCounter startMessageCounterIfNeeded];
             [self sendEventWithName:@"chatWillClose" body:@{}];
             break;
         case ZDKMessagingUIEventViewControllerDidClose:
+            // Re-enable counter when chat closes
+            self.isUnreadMessageCounterActive = YES;
             [self.messageCounter connectToChat];
             break;
         default:
@@ -569,7 +558,6 @@ RCT_EXPORT_METHOD(resetUnreadMessageCount) {
     self.stylingTimer = nil;
     self.chatController = nil;
     self.chatEngines = nil;
-    [self.messageCounter stopMessageCounter];
 }
 
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
@@ -579,8 +567,8 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
 		[ZDKChat initializeWithAccountKey:zenDeskKey queue:dispatch_get_main_queue()];
 	}
     
-    // Initialize message counter after chat is initialized
-    if (ZDKChat.instance && !self.messageCounter) {
+    // Initialize and auto-enable message counter
+    if (ZDKChat.instance) {
         self.messageCounter = [[ZendeskChatMessageCounter alloc] initWithChat:ZDKChat.instance];
         
         __weak typeof(self) weakSelf = self;
@@ -588,6 +576,11 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
             [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
                                    body:@{@"count": @(numberOfUnreadMessages)}];
         };
+        
+        // Auto-enable message counter
+        self.isUnreadMessageCounterActive = YES;
+        [self.messageCounter connectToChat];
+        NSLog(@"[RNZendeskChatModule] Message counter enabled automatically");
     }
 }
 
