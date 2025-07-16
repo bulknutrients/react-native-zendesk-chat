@@ -119,6 +119,15 @@ declare module "react-native-zendesk-chat" {
 		 * Useful for testing the message counter functionality
 		 */
 		forceUpdateMessageCount?: () => void;
+		/**
+		 * Add a listener for events (required by NativeModule interface)
+		 */
+		addListener: (eventName: string) => void;
+
+		/**
+		 * Remove listeners (required by NativeModule interface)
+		 */
+		removeListeners: (count: number) => void;
 	}
 
 	const RNZendeskChatModule: RNZendeskChatModuleImpl;
