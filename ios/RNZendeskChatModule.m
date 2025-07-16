@@ -267,18 +267,19 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 @end
 
-// Main RN Module - inheriting from RCTEventEmitter for event support
+// Main RN Module
 @interface RNZendeskChatModule : RCTEventEmitter <ZDKClassicMessagingDelegate>
-@property (nonatomic, strong) CustomZendeskNavigationController *chatController;
-@property (nonatomic, strong) NSTimer *stylingTimer;
-@property (nonatomic, strong) NSArray *chatEngines;
-@property (nonatomic, strong) ZendeskChatMessageCounter *messageCounter;
-@property (nonatomic, assign) BOOL isUnreadMessageCounterActive;
+
 @end
 
-@implementation RNZendeskChatModule
-
-ZDKChatAPIConfiguration *_visitorAPIConfig;
+@implementation RNZendeskChatModule {
+    ZDKChatAPIConfiguration *_visitorAPIConfig;
+    CustomZendeskNavigationController *_chatController;
+    NSTimer *_stylingTimer;
+    NSArray *_chatEngines;
+    ZendeskChatMessageCounter *_messageCounter;
+    BOOL _isUnreadMessageCounterActive;
+}
 
 RCT_EXPORT_MODULE(RNZendeskChatModule);
 
@@ -287,7 +288,7 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
     if (self) {
         // Initialize messaging delegate
         [ZDKClassicMessaging.instance setDelegate:self];
-        self.isUnreadMessageCounterActive = NO;
+        _isUnreadMessageCounterActive = NO;
     }
     return self;
 }
@@ -299,8 +300,8 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
 // Auto-enable message counter when it's created
 - (void)setIsUnreadMessageCounterActive:(BOOL)isUnreadMessageCounterActive {
     _isUnreadMessageCounterActive = isUnreadMessageCounterActive;
-    if (self.messageCounter) {
-        self.messageCounter.isActive = isUnreadMessageCounterActive;
+    if (_messageCounter) {
+        _messageCounter.isActive = isUnreadMessageCounterActive;
     }
 }
 
@@ -403,7 +404,7 @@ config.target = [RCTConvert BOOL: behaviorFlags[@"" #key] ?: @YES]
 
 // Helper method to check if chat is already active
 - (BOOL)isChatActive {
-    return self.chatController && self.chatController.presentingViewController;
+    return _chatController && _chatController.presentingViewController;
 }
 
 RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
@@ -429,8 +430,8 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 		NSError *error = nil;
         
         // Reuse engines if they exist and are valid
-        if (!self.chatEngines) {
-            self.chatEngines = @[
+        if (!_chatEngines) {
+            _chatEngines = @[
                 [ZDKChatEngine engineAndReturnError:&error]
             ];
             if (!!error) {
@@ -441,7 +442,7 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 
 		ZDKClassicMessagingConfiguration *messagingConfig = [self messagingConfigurationFromConfig: options[@"messagingOptions"]];
 
-		UIViewController *viewController = [ZDKClassicMessaging.instance buildUIWithEngines:self.chatEngines
+		UIViewController *viewController = [ZDKClassicMessaging.instance buildUIWithEngines:_chatEngines
 																 configs:@[chatConfig, messagingConfig]
 																   error:&error];
 		if (!!error) {
@@ -461,30 +462,30 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 			action: @selector(dismissChatUI)];
 
 		// Create custom navigation controller that enforces styling
-		self.chatController = [[CustomZendeskNavigationController alloc] initWithRootViewController: viewController];
-		self.chatController.customBackgroundColor = [self colorFromHexString:@"#E79024"];
-		self.chatController.customTextColor = [UIColor whiteColor];
+		_chatController = [[CustomZendeskNavigationController alloc] initWithRootViewController: viewController];
+		_chatController.customBackgroundColor = [self colorFromHexString:@"#E79024"];
+		_chatController.customTextColor = [UIColor whiteColor];
 
 		// Apply initial styling
-		[self.chatController applyCustomStyling];
+		[_chatController applyCustomStyling];
 
 		// Clean up any existing timer
-		[self.stylingTimer invalidate];
-		self.stylingTimer = nil;
+		[_stylingTimer invalidate];
+		_stylingTimer = nil;
 
 		// Set up a timer to reapply styling periodically (as a fallback)
-		self.stylingTimer = [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer * _Nonnull timer) {
-			if (self.chatController.presentingViewController == nil) {
+		_stylingTimer = [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer * _Nonnull timer) {
+			if (_chatController.presentingViewController == nil) {
 				[timer invalidate];
-				self.stylingTimer = nil;
+				_stylingTimer = nil;
 				return;
 			}
-			[self.chatController applyCustomStyling];
+			[_chatController applyCustomStyling];
 		}];
 
-		[RCTPresentedViewController() presentViewController:self.chatController animated:YES completion:^{
+		[RCTPresentedViewController() presentViewController:_chatController animated:YES completion:^{
 			// Apply styling one more time after presentation
-			[self.chatController applyCustomStyling];
+			[_chatController applyCustomStyling];
 		}];
 	});
 }
@@ -493,13 +494,13 @@ RCT_EXPORT_METHOD(startChat:(NSDictionary *)options) {
 RCT_EXPORT_METHOD(getUnreadMessageCount:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        resolve(@(self.messageCounter.numberOfUnreadMessages));
+        resolve(@(_messageCounter.numberOfUnreadMessages));
     });
 }
 
 RCT_EXPORT_METHOD(resetUnreadMessageCount) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self.messageCounter resetUnreadMessageCount];
+        [_messageCounter resetUnreadMessageCount];
     });
 }
 
@@ -509,18 +510,18 @@ RCT_EXPORT_METHOD(resetUnreadMessageCount) {
         case ZDKClassicMessagingUIEventViewWillAppear:
             [self sendEventWithName:@"chatWillShow" body:@{}];
             // Temporarily pause counter while actively chatting
-            if (self.messageCounter) {
-                self.messageCounter.isActive = NO;
+            if (_messageCounter) {
+                _messageCounter.isActive = NO;
             }
             break;
         case ZDKClassicMessagingUIEventViewWillDisappear:
-            [self.messageCounter startMessageCounterIfNeeded];
+            [_messageCounter startMessageCounterIfNeeded];
             [self sendEventWithName:@"chatWillClose" body:@{}];
             break;
         case ZDKClassicMessagingUIEventViewControllerDidClose:
             // Re-enable counter when chat closes
-            self.isUnreadMessageCounterActive = YES;
-            [self.messageCounter connectToChat];
+            [self setIsUnreadMessageCounterActive:YES];
+            [_messageCounter connectToChat];
             break;
         default:
             break;
@@ -544,22 +545,22 @@ RCT_EXPORT_METHOD(resetUnreadMessageCount) {
 
 - (void) dismissChatUI {
     // Clean up timer first
-    [self.stylingTimer invalidate];
-    self.stylingTimer = nil;
+    [_stylingTimer invalidate];
+    _stylingTimer = nil;
     
     // Dismiss the chat
 	[RCTPresentedViewController() dismissViewControllerAnimated:YES completion:^{
         // Clean up references after dismissal
-        self.chatController = nil;
+        _chatController = nil;
     }];
 }
 
 // Add method to completely reset chat state if needed
 - (void)resetChatState {
-    [self.stylingTimer invalidate];
-    self.stylingTimer = nil;
-    self.chatController = nil;
-    self.chatEngines = nil;
+    [_stylingTimer invalidate];
+    _stylingTimer = nil;
+    _chatController = nil;
+    _chatEngines = nil;
 }
 
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
@@ -571,17 +572,17 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
     
     // Initialize and auto-enable message counter
     if (ZDKChat.instance) {
-        self.messageCounter = [[ZendeskChatMessageCounter alloc] initWithChat:ZDKChat.instance];
+        _messageCounter = [[ZendeskChatMessageCounter alloc] initWithChat:ZDKChat.instance];
         
         __weak typeof(self) weakSelf = self;
-        self.messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
+        _messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
             [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
                                    body:@{@"count": @(numberOfUnreadMessages)}];
         };
         
         // Auto-enable message counter
-        self.isUnreadMessageCounterActive = YES;
-        [self.messageCounter connectToChat];
+        [self setIsUnreadMessageCounterActive:YES];
+        [_messageCounter connectToChat];
         NSLog(@"[RNZendeskChatModule] Message counter enabled automatically");
     }
 }
