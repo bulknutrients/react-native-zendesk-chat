@@ -19,25 +19,25 @@ import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 // Updated imports for Chat SDK v3.6.0
-import com.zendesk.chat.Account;
-import com.zendesk.chat.AccountStatus;
-import com.zendesk.chat.Chat;
-import com.zendesk.chat.ChatConfiguration;
-import com.zendesk.chat.ChatEngine;
-import com.zendesk.chat.ChatLog;
-import com.zendesk.chat.ChatSessionStatus;
-import com.zendesk.chat.ChatState;
-import com.zendesk.chat.ConnectionStatus;
-import com.zendesk.chat.ObservationScope;
-import com.zendesk.chat.Observer;
-import com.zendesk.chat.ProfileProvider;
-import com.zendesk.chat.PreChatFormFieldStatus;
-import com.zendesk.chat.PushNotificationsProvider;
-import com.zendesk.chat.VisitorInfo;
+import zendesk.chat.Account;
+import zendesk.chat.AccountStatus;
+import zendesk.chat.Chat;
+import zendesk.chat.ChatConfiguration;
+import zendesk.chat.ChatEngine;
+import zendesk.chat.ChatLog;
+import zendesk.chat.ChatSessionStatus;
+import zendesk.chat.ChatState;
+import zendesk.chat.ConnectionStatus;
+import zendesk.chat.ObservationScope;
+import zendesk.chat.Observer;
+import zendesk.chat.ProfileProvider;
+import zendesk.chat.PreChatFormFieldStatus;
+import zendesk.chat.PushNotificationsProvider;
+import zendesk.chat.VisitorInfo;
 
 // Updated imports for Messaging SDK v5.6.0
-import com.zendesk.messaging.MessagingActivity;
-import com.zendesk.messaging.MessagingConfiguration;
+import zendesk.messaging.MessagingActivity;
+import zendesk.messaging.MessagingConfiguration;
 
 import com.zendesk.service.ErrorResponse;
 import com.zendesk.service.ZendeskCallback;
@@ -46,118 +46,71 @@ import java.lang.String;
 import java.util.ArrayList;
 import java.util.List;
 
-// Message Counter Implementation for Android
 class UnreadMessageCounter {
     public interface UnreadMessageCounterListener {
         void onUnreadCountUpdated(int unreadCount);
     }
 
-    private UnreadMessageCounterListener unreadMessageCounterListener;
+    private final UnreadMessageCounterListener unreadMessageCounterListener;
     private boolean shouldCount = false;
-    private String lastReadChatLogId = null;
-    private String lastChatLogId = null;
-    private ObservationScope observationScope;
+    private String lastChatLogId;
+    private String lastReadChatLogId;
 
-    public UnreadMessageCounter(UnreadMessageCounterListener listener) {
-        this.unreadMessageCounterListener = listener;
-        this.observationScope = new ObservationScope();
-    }
-    
-    private void setupObserver() {
-        try {
-            // Check if Chat providers are available
-            if (Chat.INSTANCE.providers() == null || Chat.INSTANCE.providers().chatProvider() == null) {
-                Log.w("UnreadMessageCounter", "Chat providers not available for observer setup");
-                return;
-            }
-            
-            // Set up chat state observer
-            Chat.INSTANCE.providers().chatProvider().observeChatState(observationScope, new Observer<ChatState>() {
-                @Override
-                public void update(ChatState chatState) {
-                    try {
-                        if (chatState != null && !chatState.getChatLogs().isEmpty()) {
-                            if (shouldCount && lastReadChatLogId != null) {
-                                updateCounter(chatState.getChatLogs(), lastReadChatLogId);
-                            }
-                            lastChatLogId = chatState.getChatLogs().get(
-                                chatState.getChatLogs().size() - 1
-                            ).getId();
-                        }
-                    } catch (Exception e) {
-                        Log.e("UnreadMessageCounter", "Error in chat state observer: " + e.getMessage());
+    public UnreadMessageCounter(UnreadMessageCounterListener unreadMessageCounterListener) {
+        this.unreadMessageCounterListener = unreadMessageCounterListener;
+        
+        // Set up observer exactly like the demo
+        Chat.INSTANCE.providers().chatProvider().observeChatState(new ObservationScope(), new Observer<ChatState>() {
+            @Override
+            public void update(ChatState chatState) {
+                if (chatState != null && !chatState.getChatLogs().isEmpty()) {
+                    if (shouldCount && lastReadChatLogId != null) {
+                        updateCounter(chatState.getChatLogs(), lastReadChatLogId);
                     }
+                    lastChatLogId = chatState.getChatLogs().get(
+                            chatState.getChatLogs().size() - 1
+                    ).getId();
                 }
-            });
-        } catch (Exception e) {
-            Log.e("UnreadMessageCounter", "Error setting up observer: " + e.getMessage());
-        }
+            }
+        });
     }
 
-    public void startCounting() {
-        try {
-            // Set up observer if not already done
-            setupObserver();
-            
-            shouldCount = true;
-            if (lastChatLogId != null) {
-                lastReadChatLogId = lastChatLogId;
-            }
-            Log.d("UnreadMessageCounter", "Started counting unread messages");
-        } catch (Exception e) {
-            Log.e("UnreadMessageCounter", "Error starting counter: " + e.getMessage());
-        }
+    // Determines whether or not the chat websocket should be re-connected to.
+    // A connected, open websocket will disable push notifications and receive messages as normal.
+    public void startCounter() {
+        shouldCount = true;
+        lastReadChatLogId = lastChatLogId;
+        Chat.INSTANCE.providers().connectionProvider().connect();
+        Log.d("UnreadMessageCounter", "Started counter with lastReadId: " + lastReadChatLogId);
     }
 
-    public void stopCounting() {
-        try {
-            shouldCount = false;
-            lastReadChatLogId = null;
-            if (unreadMessageCounterListener != null) {
-                unreadMessageCounterListener.onUnreadCountUpdated(0);
-            }
-            Log.d("UnreadMessageCounter", "Stopped counting unread messages");
-        } catch (Exception e) {
-            Log.e("UnreadMessageCounter", "Error stopping counter: " + e.getMessage());
-        }
+    public void stopCounter() {
+        lastReadChatLogId = null;
+        shouldCount = false;
+        unreadMessageCounterListener.onUnreadCountUpdated(0);
+        Log.d("UnreadMessageCounter", "Stopped counter");
     }
 
     public void markAsRead() {
-        try {
-            if (lastChatLogId != null) {
-                lastReadChatLogId = lastChatLogId;
-            }
-            if (unreadMessageCounterListener != null) {
-                unreadMessageCounterListener.onUnreadCountUpdated(0);
-            }
-        } catch (Exception e) {
-            Log.e("UnreadMessageCounter", "Error marking as read: " + e.getMessage());
+        if (lastChatLogId != null) {
+            lastReadChatLogId = lastChatLogId;
         }
+        if (unreadMessageCounterListener != null) {
+            unreadMessageCounterListener.onUnreadCountUpdated(0);
+        }
+        Log.d("UnreadMessageCounter", "Marked as read: " + lastReadChatLogId);
     }
 
-    private synchronized void updateCounter(List<ChatLog> chatLogs, String lastReadId) {
-        int unreadCount = 0;
-        boolean foundLastRead = false;
-        
+    // Increment the counter and send an update to the listener - EXACTLY like the demo
+    synchronized private void updateCounter(List<ChatLog> chatLogs, String lastReadId) {
         for (ChatLog chatLog : chatLogs) {
             if (chatLog.getId().equals(lastReadId)) {
-                foundLastRead = true;
-                continue;
+                int lastReadIndex = chatLogs.indexOf(chatLog);
+                List<ChatLog> unreadLogs = chatLogs.subList(lastReadIndex + 1, chatLogs.size()); // Fixed: +1 to exclude the read message
+                unreadMessageCounterListener.onUnreadCountUpdated(unreadLogs.size());
+                Log.d("UnreadMessageCounter", "Updated count: " + unreadLogs.size());
+                break;
             }
-            if (foundLastRead && chatLog.getChatParticipant() != null && 
-                chatLog.getChatParticipant().toString().equals("AGENT")) {
-                unreadCount++;
-            }
-        }
-        
-        if (unreadMessageCounterListener != null) {
-            unreadMessageCounterListener.onUnreadCountUpdated(unreadCount);
-        }
-    }
-
-    public void cleanup() {
-        if (observationScope != null) {
-            observationScope.cancel();
         }
     }
 }
@@ -304,32 +257,8 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         super(reactContext);
         mReactContext = reactContext;
         
-        // Initialize message counter but don't start it yet
-        messageCounter = new UnreadMessageCounter(new UnreadMessageCounter.UnreadMessageCounterListener() {
-            @Override
-            public void onUnreadCountUpdated(int unreadCount) {
-                currentUnreadCount = unreadCount;
-                if (isUnreadMessageCounterActive) {
-                    WritableMap params = Arguments.createMap();
-                    params.putInt("count", unreadCount);
-                    sendEvent("unreadMessageCountChanged", params);
-                }
-            }
-        });
-    }
-
-    private void initializeMessageCounter() {
-        messageCounter = new UnreadMessageCounter(new UnreadMessageCounter.UnreadMessageCounterListener() {
-            @Override
-            public void onUnreadCountUpdated(int unreadCount) {
-                currentUnreadCount = unreadCount;
-                if (isUnreadMessageCounterActive) {
-                    WritableMap params = Arguments.createMap();
-                    params.putInt("count", unreadCount);
-                    sendEvent("unreadMessageCountChanged", params);
-                }
-            }
-        });
+        // Don't initialize message counter here - wait for SDK init
+        Log.d(TAG, "RNZendeskChatModule constructor completed");
     }
 
     @Override
@@ -382,67 +311,52 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             Chat.INSTANCE.init(mReactContext, key);
         }
         
-        // Delay message counter initialization to ensure SDK is ready
-        new android.os.Handler().postDelayed(new Runnable() {
+        // Initialize message counter AFTER SDK init, exactly like the demo
+        messageCounter = new UnreadMessageCounter(new UnreadMessageCounter.UnreadMessageCounterListener() {
             @Override
-            public void run() {
-                try {
-                    if (Chat.INSTANCE.providers() != null) {
-                        enableMessageCounter(true);
-                        Log.d(TAG, "Message counter enabled after SDK initialization");
-                    } else {
-                        Log.w(TAG, "Chat providers not ready, retrying message counter setup...");
-                        retryMessageCounterSetup(0);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error setting up message counter: " + e.getMessage());
-                    retryMessageCounterSetup(0);
+            public void onUnreadCountUpdated(int unreadCount) {
+                currentUnreadCount = unreadCount;
+                Log.d(TAG, "Unread count updated: " + unreadCount);
+                if (isUnreadMessageCounterActive) {
+                    WritableMap params = Arguments.createMap();
+                    params.putInt("count", unreadCount);
+                    sendEvent("unreadMessageCountChanged", params);
+                    Log.d(TAG, "Sent unreadMessageCountChanged event with count: " + unreadCount);
                 }
             }
-        }, 1000); // Wait 1 second for SDK to initialize
+        });
         
-        Log.d(TAG, "Chat.INSTANCE initialized, message counter setup scheduled");
-    }
-    
-    private void retryMessageCounterSetup(int attempt) {
-        if (attempt >= 5) {
-            Log.e(TAG, "Failed to setup message counter after 5 attempts");
-            return;
-        }
+        // Auto-enable message counter
+        isUnreadMessageCounterActive = true;
+        messageCounter.startCounter();
         
-        new android.os.Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    if (Chat.INSTANCE.providers() != null) {
-                        enableMessageCounter(true);
-                        Log.d(TAG, "Message counter enabled on retry attempt " + (attempt + 1));
-                    } else {
-                        Log.w(TAG, "Retry " + (attempt + 1) + " - Chat providers still not ready");
-                        retryMessageCounterSetup(attempt + 1);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Retry " + (attempt + 1) + " failed: " + e.getMessage());
-                    retryMessageCounterSetup(attempt + 1);
-                }
-            }
-        }, 2000); // Wait 2 seconds between retries
+        Log.d(TAG, "Chat.INSTANCE initialized and message counter started");
     }
 
     // Message Counter Methods
     @ReactMethod
     public void enableMessageCounter(boolean enabled) {
-        isUnreadMessageCounterActive = enabled;
-        if (enabled) {
-            if (messageCounter != null) {
-                messageCounter.startCounting();
+        try {
+            // Check if Chat SDK is properly initialized
+            if (Chat.INSTANCE.providers() == null) {
+                Log.w(TAG, "Cannot enable message counter - Chat providers not ready");
+                return;
             }
-            Log.d(TAG, "Message counter enabled");
-        } else {
-            if (messageCounter != null) {
-                messageCounter.stopCounting();
+            
+            isUnreadMessageCounterActive = enabled;
+            if (enabled) {
+                if (messageCounter != null) {
+                    messageCounter.startCounter();
+                }
+                Log.d(TAG, "Message counter enabled");
+            } else {
+                if (messageCounter != null) {
+                    messageCounter.stopCounter();
+                }
+                Log.d(TAG, "Message counter disabled");
             }
-            Log.d(TAG, "Message counter disabled");
+        } catch (Exception e) {
+            Log.e(TAG, "Error enabling message counter: " + e.getMessage());
         }
     }
 
@@ -462,6 +376,24 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             params.putInt("count", 0);
             sendEvent("unreadMessageCountChanged", params);
         }
+    }
+
+    // Debug methods
+    @ReactMethod
+    public void debugMessageCounter() {
+        Log.d(TAG, "=== ANDROID DEBUG MESSAGE COUNTER ===");
+        Log.d(TAG, "Message counter exists: " + (messageCounter != null));
+        Log.d(TAG, "Message counter active: " + isUnreadMessageCounterActive);
+        Log.d(TAG, "Current unread count: " + currentUnreadCount);
+        Log.d(TAG, "Chat providers available: " + (Chat.INSTANCE.providers() != null));
+    }
+
+    @ReactMethod
+    public void triggerTestEvent() {
+        Log.d(TAG, "🔥 Triggering test event");
+        WritableMap params = Arguments.createMap();
+        params.putInt("count", 999);
+        sendEvent("unreadMessageCountChanged", params);
     }
 
     private ChatConfiguration.Builder loadBehaviorFlags(ChatConfiguration.Builder b, ReadableMap options) {
@@ -546,9 +478,9 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         WritableMap chatWillShowParams = Arguments.createMap();
         sendEvent("chatWillShow", chatWillShowParams);
 
-        // Temporarily pause message counter while chat is active
+        // Stop message counter when opening chat (like the demo)
         if (messageCounter != null) {
-            messageCounter.stopCounting();
+            messageCounter.stopCounter();
         }
 
         pendingVisitorInfo = null;
@@ -581,12 +513,11 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             setupChatStartObserverToSetVisitorInfo();
         }
 
-        // Set up observer for when chat closes
+        // Set up observer for when chat closes to restart counter
         setupChatCloseObserver();
 
         Activity activity = getCurrentActivity();
         if (activity != null) {
-            // Updated for Messaging SDK v5.6.0
             messagingBuilder.withEngines(ChatEngine.engine()).show(activity, chatConfig);
         } else {
             Log.e(TAG, "Could not load getCurrentActivity -- no UI can be displayed without it.");
@@ -607,9 +538,9 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                     WritableMap chatWillCloseParams = Arguments.createMap();
                     sendEvent("chatWillClose", chatWillCloseParams);
                     
-                    // Always restart message counter when chat ends
+                    // Restart message counter when chat ends (like the demo when button is clicked)
                     if (messageCounter != null) {
-                        messageCounter.startCounting();
+                        messageCounter.startCounter();
                     }
                     
                     // Clean up this observer
@@ -678,7 +609,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
     // Clean up resources
     public void onCatalystInstanceDestroy() {
         if (messageCounter != null) {
-            messageCounter.cleanup();
+            messageCounter.stopCounter();
         }
         if (observationScope != null) {
             observationScope.cancel();
