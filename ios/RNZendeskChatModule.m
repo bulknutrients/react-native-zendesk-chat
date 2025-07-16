@@ -84,20 +84,20 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 @end
 
-// Message Counter Implementation
+// Message Counter Implementation for SDK v2
 @interface ZendeskChatMessageCounter : NSObject
 @property (nonatomic, copy) void (^onUnreadMessageCountChange)(NSInteger numberOfUnreadMessages);
 @property (nonatomic, assign) BOOL isActive;
 @property (nonatomic, readonly) NSInteger numberOfUnreadMessages;
 @property (nonatomic, strong) ZDKChat *chat;
-@property (nonatomic, strong) NSMutableArray *observations;
-@property (nonatomic, strong) NSMutableArray *notificationTokens;
+@property (nonatomic, strong) NSMutableArray *observationTokens;
 @property (nonatomic, strong) ZDKChatLog *lastSeenMessage;
 
 - (instancetype)initWithChat:(ZDKChat *)chat;
 - (void)startMessageCounterIfNeeded;
 - (void)stopMessageCounter;
 - (void)connectToChat;
+- (void)resetUnreadMessageCount;
 
 @end
 
@@ -107,9 +107,9 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
     self = [super init];
     if (self) {
         _chat = chat;
-        _observations = [NSMutableArray array];
-        _notificationTokens = [NSMutableArray array];
+        _observationTokens = [NSMutableArray array];
         _numberOfUnreadMessages = 0;
+        _isActive = NO;
     }
     return self;
 }
@@ -132,7 +132,7 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 - (NSArray<ZDKChatLog *> *)unreadMessages {
     if (!self.isActive || !self.isChatting || !self.lastSeenMessage) {
-        return nil;
+        return @[];
     }
     
     NSArray *logs = self.chat.chatProvider.chatState.logs;
@@ -158,9 +158,11 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 }
 
 - (void)startMessageCounterIfNeeded {
-    if (self.isChatting && !self.isActive) {
+    if (!self.isActive) {
+        self.isActive = YES;
         self.lastSeenMessage = self.chat.chatProvider.chatState.logs.lastObject;
         [self updateUnreadMessageCount];
+        [self startObservingChat];
     }
 }
 
@@ -168,6 +170,7 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
     [self stopObservingChat];
     [self resetUnreadMessageCount];
     [self.chat.connectionProvider disconnect];
+    self.isActive = NO;
 }
 
 - (void)connectToChat {
@@ -188,20 +191,26 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 }
 
 - (void)resetUnreadMessageCount {
-    self.numberOfUnreadMessages = 0;
+    _numberOfUnreadMessages = 0;
+    if (self.onUnreadMessageCountChange) {
+        self.onUnreadMessageCountChange(0);
+    }
 }
 
 - (void)startObservingChat {
+    // Stop any existing observations first
+    [self stopObservingChat];
+    
     // Observe connection status
     __weak typeof(self) weakSelf = self;
-    id connectionObservation = [self.chat.connectionProvider observeConnectionStatus:^(ZDKConnectionStatus status) {
+    id connectionToken = [self.chat.connectionProvider observeConnectionStatus:^(ZDKConnectionStatus status) {
         if (status == ZDKConnectionStatusConnected) {
             [weakSelf observeChatState];
         }
     }];
-    [self.observations addObject:connectionObservation];
+    [self.observationTokens addObject:connectionToken];
     
-    // Observe application events
+    // Observe application events using NSNotificationCenter
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(applicationDidEnterBackground:)
                                                  name:UIApplicationDidEnterBackgroundNotification
@@ -211,16 +220,11 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
                                              selector:@selector(applicationWillEnterForeground:)
                                                  name:UIApplicationWillEnterForegroundNotification
                                                object:nil];
-    
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(chatDidEnd:)
-                                                 name:ZDKChatNotificationChatEnded
-                                               object:nil];
 }
 
 - (void)observeChatState {
     __weak typeof(self) weakSelf = self;
-    id chatStateObservation = [self.chat.chatProvider observeChatState:^(ZDKChatState *state) {
+    id chatStateToken = [self.chat.chatProvider observeChatState:^(ZDKChatState *state) {
         if (weakSelf.chat.connectionProvider.status != ZDKConnectionStatusConnected) return;
         
         if (!state.isChatting) {
@@ -231,17 +235,17 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
             [weakSelf updateUnreadMessageCount];
         }
     }];
-    [self.observations addObject:chatStateObservation];
+    [self.observationTokens addObject:chatStateToken];
 }
 
 - (void)stopObservingChat {
-    // Remove all observations
-    for (id observation in self.observations) {
-        if ([observation respondsToSelector:@selector(unobserve)]) {
-            [observation unobserve];
+    // Cancel all observation tokens - they should have a cancel method
+    for (id token in self.observationTokens) {
+        if ([token respondsToSelector:@selector(cancel)]) {
+            [token cancel];
         }
     }
-    [self.observations removeAllObjects];
+    [self.observationTokens removeAllObjects];
     
     // Remove notification observers
     [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -257,20 +261,14 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
     }
 }
 
-- (void)chatDidEnd:(NSNotification *)notification {
-    if (self.isActive) {
-        [self stopMessageCounter];
-    }
-}
-
 - (void)dealloc {
     [self stopObservingChat];
 }
 
 @end
 
-// Main RN Module
-@interface RNZendeskChatModule () <ZDKMessagingDelegate>
+// Main RN Module - inheriting from RCTEventEmitter for event support
+@interface RNZendeskChatModule : RCTEventEmitter <ZDKClassicMessagingDelegate>
 @property (nonatomic, strong) CustomZendeskNavigationController *chatController;
 @property (nonatomic, strong) NSTimer *stylingTimer;
 @property (nonatomic, strong) NSArray *chatEngines;
@@ -288,7 +286,7 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
     self = [super init];
     if (self) {
         // Initialize messaging delegate
-        [ZDKMessaging.instance setDelegate:self];
+        [ZDKClassicMessaging.instance setDelegate:self];
         self.isUnreadMessageCounterActive = NO;
     }
     return self;
@@ -301,7 +299,9 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
 // Auto-enable message counter when it's created
 - (void)setIsUnreadMessageCounterActive:(BOOL)isUnreadMessageCounterActive {
     _isUnreadMessageCounterActive = isUnreadMessageCounterActive;
-    self.messageCounter.isActive = isUnreadMessageCounterActive;
+    if (self.messageCounter) {
+        self.messageCounter.isActive = isUnreadMessageCounterActive;
+    }
 }
 
 RCT_EXPORT_METHOD(setVisitorInfo:(NSDictionary *)options) {
@@ -503,19 +503,21 @@ RCT_EXPORT_METHOD(resetUnreadMessageCount) {
     });
 }
 
-// ZDKMessagingDelegate Methods
-- (void)messaging:(ZDKMessaging *)messaging didPerformEvent:(ZDKMessagingUIEvent)event context:(id)context {
+// ZDKClassicMessagingDelegate Methods
+- (void)messaging:(ZDKClassicMessaging *)messaging didPerformEvent:(ZDKClassicMessagingUIEvent)event context:(id)context {
     switch (event) {
-        case ZDKMessagingUIEventViewWillAppear:
+        case ZDKClassicMessagingUIEventViewWillAppear:
             [self sendEventWithName:@"chatWillShow" body:@{}];
             // Temporarily pause counter while actively chatting
-            self.messageCounter.isActive = NO;
+            if (self.messageCounter) {
+                self.messageCounter.isActive = NO;
+            }
             break;
-        case ZDKMessagingUIEventViewWillDisappear:
+        case ZDKClassicMessagingUIEventViewWillDisappear:
             [self.messageCounter startMessageCounterIfNeeded];
             [self sendEventWithName:@"chatWillClose" body:@{}];
             break;
-        case ZDKMessagingUIEventViewControllerDidClose:
+        case ZDKClassicMessagingUIEventViewControllerDidClose:
             // Re-enable counter when chat closes
             self.isUnreadMessageCounterActive = YES;
             [self.messageCounter connectToChat];
@@ -525,7 +527,7 @@ RCT_EXPORT_METHOD(resetUnreadMessageCount) {
     }
 }
 
-- (BOOL)messaging:(ZDKMessaging *)messaging shouldOpenURL:(NSURL *)url {
+- (BOOL)messaging:(ZDKClassicMessaging *)messaging shouldOpenURL:(NSURL *)url {
     return YES; // Default implementation opens in Safari
 }
 
