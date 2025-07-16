@@ -364,7 +364,16 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 RCT_EXPORT_MODULE(RNZendeskChatModule);
 
-// Required for RCTEventEmitter
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        // Initialize messaging delegate
+        [ZDKClassicMessaging.instance setDelegate:self];
+        _isUnreadMessageCounterActive = NO;
+    }
+    return self;
+}
+
 - (NSArray<NSString *> *)supportedEvents {
     return @[@"unreadMessageCountChanged", @"chatWillShow", @"chatWillClose"];
 }
@@ -387,20 +396,6 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
 
 - (void)stopObserving {
     // Called when the last listener is removed
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        // Initialize messaging delegate
-        [ZDKClassicMessaging.instance setDelegate:self];
-        _isUnreadMessageCounterActive = NO;
-    }
-    return self;
-}
-
-- (NSArray<NSString *> *)supportedEvents {
-    return @[@"unreadMessageCountChanged", @"chatWillShow", @"chatWillClose"];
 }
 
 // Auto-enable message counter when it's created
