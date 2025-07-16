@@ -360,6 +360,7 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
     NSArray *_chatEngines;
     ZendeskChatMessageCounter *_messageCounter;
     BOOL _isUnreadMessageCounterActive;
+    BOOL _hasListeners;
 }
 
 RCT_EXPORT_MODULE(RNZendeskChatModule);
@@ -389,13 +390,14 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
     // This is required by the interface but can be empty
 }
 
-// Override to allow events to be sent
 - (void)startObserving {
-    // Called when the first listener is added
+    _hasListeners = YES;
+    NSLog(@"[RNZendeskChatModule] Started observing - listeners available");
 }
 
 - (void)stopObserving {
-    // Called when the last listener is removed
+    _hasListeners = NO;
+    NSLog(@"[RNZendeskChatModule] Stopped observing - no listeners");
 }
 
 // Auto-enable message counter when it's created
@@ -620,12 +622,13 @@ RCT_EXPORT_METHOD(forceUpdateMessageCount) {
     });
 }
 
-// ZDKClassicMessagingDelegate Methods
 - (void)messaging:(ZDKClassicMessaging *)messaging didPerformEvent:(ZDKClassicMessagingUIEvent)event context:(id)context {
     switch (event) {
         case ZDKClassicMessagingUIEventViewWillAppear:
             NSLog(@"[RNZendeskChatModule] Chat will appear - pausing message counter");
-            [self sendEventWithName:@"chatWillShow" body:@{}];
+            if (_hasListeners) {
+                [self sendEventWithName:@"chatWillShow" body:@{}];
+            }
             // Mark current position as read and pause counter
             if (_messageCounter) {
                 [_messageCounter markCurrentPositionAsRead];
@@ -634,7 +637,9 @@ RCT_EXPORT_METHOD(forceUpdateMessageCount) {
             break;
         case ZDKClassicMessagingUIEventViewWillDisappear:
             NSLog(@"[RNZendeskChatModule] Chat will disappear - starting message counter");
-            [self sendEventWithName:@"chatWillClose" body:@{}];
+            if (_hasListeners) {
+                [self sendEventWithName:@"chatWillClose" body:@{}];
+            }
             // Start the message counter
             if (_messageCounter) {
                 [_messageCounter startMessageCounterIfNeeded];
@@ -680,14 +685,6 @@ RCT_EXPORT_METHOD(forceUpdateMessageCount) {
     }];
 }
 
-// Add method to completely reset chat state if needed
-- (void)resetChatState {
-    [_stylingTimer invalidate];
-    _stylingTimer = nil;
-    _chatController = nil;
-    _chatEngines = nil;
-}
-
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
 	if (appId) {
 		[ZDKChat initializeWithAccountKey:zenDeskKey appId:appId queue:dispatch_get_main_queue()];
@@ -695,14 +692,18 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
 		[ZDKChat initializeWithAccountKey:zenDeskKey queue:dispatch_get_main_queue()];
 	}
     
-    // Initialize and auto-enable message counter
     if (ZDKChat.instance) {
         _messageCounter = [[ZendeskChatMessageCounter alloc] initWithChat:ZDKChat.instance];
         
         __weak typeof(self) weakSelf = self;
         _messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
-            [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
-                                   body:@{@"count": @(numberOfUnreadMessages)}];
+            // Only send event if there are listeners
+            if (weakSelf.hasListeners) {
+                [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
+                                       body:@{@"count": @(numberOfUnreadMessages)}];
+            } else {
+                NSLog(@"[RNZendeskChatModule] Unread count changed to %ld but no listeners registered", (long)numberOfUnreadMessages);
+            }
         };
         
         // Auto-enable message counter
