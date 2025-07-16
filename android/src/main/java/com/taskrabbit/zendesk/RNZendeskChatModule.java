@@ -312,23 +312,25 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         }
         
         // Initialize message counter AFTER SDK init, exactly like the demo
-        messageCounter = new UnreadMessageCounter(new UnreadMessageCounter.UnreadMessageCounterListener() {
-            @Override
-            public void onUnreadCountUpdated(int unreadCount) {
-                currentUnreadCount = unreadCount;
-                Log.d(TAG, "Unread count updated: " + unreadCount);
-                if (isUnreadMessageCounterActive) {
-                    WritableMap params = Arguments.createMap();
-                    params.putInt("count", unreadCount);
-                    sendEvent("unreadMessageCountChanged", params);
-                    Log.d(TAG, "Sent unreadMessageCountChanged event with count: " + unreadCount);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            messageCounter = new UnreadMessageCounter(new UnreadMessageCounter.UnreadMessageCounterListener() {
+                @Override
+                public void onUnreadCountUpdated(int unreadCount) {
+                    currentUnreadCount = unreadCount;
+                    Log.d(TAG, "Unread count updated: " + unreadCount);
+                    if (isUnreadMessageCounterActive) {
+                        WritableMap params = Arguments.createMap();
+                        params.putInt("count", unreadCount);
+                        sendEvent("unreadMessageCountChanged", params);
+                        Log.d(TAG, "Sent unreadMessageCountChanged event with count: " + unreadCount);
+                    }
                 }
-            }
+            });
+            
+            // Auto-enable message counter
+            isUnreadMessageCounterActive = true;
+            messageCounter.startCounter();
         });
-        
-        // Auto-enable message counter
-        isUnreadMessageCounterActive = true;
-        messageCounter.startCounter();
         
         Log.d(TAG, "Chat.INSTANCE initialized and message counter started");
     }
@@ -376,24 +378,6 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             params.putInt("count", 0);
             sendEvent("unreadMessageCountChanged", params);
         }
-    }
-
-    // Debug methods
-    @ReactMethod
-    public void debugMessageCounter() {
-        Log.d(TAG, "=== ANDROID DEBUG MESSAGE COUNTER ===");
-        Log.d(TAG, "Message counter exists: " + (messageCounter != null));
-        Log.d(TAG, "Message counter active: " + isUnreadMessageCounterActive);
-        Log.d(TAG, "Current unread count: " + currentUnreadCount);
-        Log.d(TAG, "Chat providers available: " + (Chat.INSTANCE.providers() != null));
-    }
-
-    @ReactMethod
-    public void triggerTestEvent() {
-        Log.d(TAG, "🔥 Triggering test event");
-        WritableMap params = Arguments.createMap();
-        params.putInt("count", 999);
-        sendEvent("unreadMessageCountChanged", params);
     }
 
     private ChatConfiguration.Builder loadBehaviorFlags(ChatConfiguration.Builder b, ReadableMap options) {
