@@ -159,7 +159,21 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
     BOOL foundLastSeen = NO;
     
     for (ZDKChatLog *log in logs) {
-        if ([log.chatLogId isEqualToString:self.lastSeenMessageId]) {
+        // Use the correct property name - try different possibilities
+        NSString *logId = nil;
+        if ([log respondsToSelector:@selector(id)]) {
+            logId = log.id;
+        } else if ([log respondsToSelector:@selector(messageId)]) {
+            logId = [log performSelector:@selector(messageId)];
+        } else if ([log respondsToSelector:@selector(logId)]) {
+            logId = [log performSelector:@selector(logId)];
+        } else {
+            // Fallback to using timestamp
+            NSString *timestamp = [NSString stringWithFormat:@"%.0f", log.createdTimestamp];
+            logId = timestamp;
+        }
+        
+        if ([logId isEqualToString:self.lastSeenMessageId]) {
             foundLastSeen = YES;
             continue;
         }
@@ -194,7 +208,21 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
     NSArray *logs = self.chat.chatProvider.chatState.logs;
     if (logs && logs.count > 0) {
         ZDKChatLog *lastLog = logs.lastObject;
-        self.lastSeenMessageId = lastLog.chatLogId;
+        
+        // Use the correct property name for the log ID
+        NSString *logId = nil;
+        if ([lastLog respondsToSelector:@selector(id)]) {
+            logId = lastLog.id;
+        } else if ([lastLog respondsToSelector:@selector(messageId)]) {
+            logId = [lastLog performSelector:@selector(messageId)];
+        } else if ([lastLog respondsToSelector:@selector(logId)]) {
+            logId = [lastLog performSelector:@selector(logId)];
+        } else {
+            // Fallback to using timestamp as unique identifier
+            logId = [NSString stringWithFormat:@"%.0f", lastLog.createdTimestamp];
+        }
+        
+        self.lastSeenMessageId = logId;
         NSLog(@"[ZendeskChatMessageCounter] Marked position as read: %@", self.lastSeenMessageId);
     }
 }
@@ -335,6 +363,31 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 }
 
 RCT_EXPORT_MODULE(RNZendeskChatModule);
+
+// Required for RCTEventEmitter
+- (NSArray<NSString *> *)supportedEvents {
+    return @[@"unreadMessageCountChanged", @"chatWillShow", @"chatWillClose"];
+}
+
+// Required methods for NativeModule interface
+- (void)addListener:(NSString *)eventName {
+    // Keep track of listeners if needed
+    // This is required by the interface but can be empty
+}
+
+- (void)removeListeners:(NSInteger)count {
+    // Clean up listeners if needed
+    // This is required by the interface but can be empty
+}
+
+// Override to allow events to be sent
+- (void)startObserving {
+    // Called when the first listener is added
+}
+
+- (void)stopObserving {
+    // Called when the last listener is removed
+}
 
 - (instancetype)init {
     self = [super init];
@@ -556,7 +609,9 @@ RCT_EXPORT_METHOD(getUnreadMessageCount:(RCTPromiseResolveBlock)resolve
 RCT_EXPORT_METHOD(resetUnreadMessageCount) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSLog(@"[RNZendeskChatModule] Resetting unread count");
-        [_messageCounter resetUnreadMessageCount];
+        if (_messageCounter) {
+            [_messageCounter resetUnreadMessageCount];
+        }
     });
 }
 
