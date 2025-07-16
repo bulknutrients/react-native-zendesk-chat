@@ -2,7 +2,6 @@
 
 #import <React/RCTUtils.h>
 #import <React/RCTConvert.h>
-#import <React/RCTEventEmitter.h>
 
 #import <ChatSDK/ChatSDK.h>
 #import <ChatProvidersSDK/ChatProvidersSDK.h>
@@ -267,11 +266,7 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 
 @end
 
-// Main RN Module
-@interface RNZendeskChatModule : RCTEventEmitter <ZDKClassicMessagingDelegate>
-
-@end
-
+// Main RN Module Implementation
 @implementation RNZendeskChatModule {
     ZDKChatAPIConfiguration *_visitorAPIConfig;
     CustomZendeskNavigationController *_chatController;
