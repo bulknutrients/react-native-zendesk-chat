@@ -739,9 +739,4 @@ RCT_EXPORT_METHOD(areAgentsOnline:
 	}];
 }
 
-// Add dealloc to clean up resources
-- (void)dealloc {
-    [self resetChatState];
-}
-
 @end
