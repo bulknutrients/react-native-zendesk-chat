@@ -102,6 +102,23 @@ declare module "react-native-zendesk-chat" {
 		 * Check if there are available agents
 		 */
 		areAgentsOnline: () => Promise<Boolean>;
+		/**
+		 * Get the current number of unread messages
+		 * Returns a promise that resolves to the unread message count
+		 */
+		getUnreadMessageCount: () => Promise<number>;
+
+		/**
+		 * Reset the unread message count to zero
+		 * Marks all current messages as read
+		 */
+		resetUnreadMessageCount: () => void;
+
+		/**
+		 * Force an update of the message count (debug method)
+		 * Useful for testing the message counter functionality
+		 */
+		forceUpdateMessageCount?: () => void;
 	}
 
 	const RNZendeskChatModule: RNZendeskChatModuleImpl;
