@@ -35,9 +35,7 @@ import zendesk.chat.ProfileProvider;
 import zendesk.chat.PreChatFormFieldStatus;
 import zendesk.chat.PushNotificationsProvider;
 import zendesk.chat.VisitorInfo;
-
-// Use correct imports for UI components
-import zendesk.chat.ChatActivity;
+import zendesk.classic.messaging.MessagingActivity;
 
 import com.zendesk.service.ErrorResponse;
 import com.zendesk.service.ZendeskCallback;
@@ -405,9 +403,11 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         pendingVisitorInfo = null;
         boolean didSetVisitorInfo = _setVisitorInfo(options);
 
+        // Behavior flags
         ReadableMap flagHash = getReadableMap(options, "behaviorFlags", "startChat");
         boolean showPreChatForm = getBooleanOrDefault(flagHash, "showPreChatForm", "startChat(behaviorFlags)", true);
 
+        // Build ChatConfiguration
         ChatConfiguration.Builder chatBuilder = loadBehaviorFlags(ChatConfiguration.builder(), flagHash);
         if (showPreChatForm) {
             ReadableMap preChatFormOptions = getReadableMap(options, "preChatFormOptions", "startChat");
@@ -415,6 +415,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         }
         ChatConfiguration chatConfig = chatBuilder.build();
 
+        // Set department if present
         String department = getStringOrNull(options, "department", "startChat");
         if (department != null) {
             Chat.INSTANCE.providers().chatProvider().setDepartment(department, null);
@@ -422,14 +423,20 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
 
         loadTags(options);
 
-        // Set up observer for when chat closes to restart counter
+        // Observer to restart unread message counter after chat closes
         setupChatCloseObserver();
 
         Activity activity = getCurrentActivity();
         if (activity != null) {
-            ChatActivity.builder()
-                    .withEngines(ChatEngine.engine())
-                    .show(activity, chatConfig);
+            // Launch Zendesk chat with classic MessagingActivity and ChatEngine
+            MessagingConfiguration messagingConfig = new MessagingConfiguration.Builder()
+                .withEngines(ChatEngine.engine())
+                .withChatConfiguration(chatConfig) // ✅ attach the built ChatConfiguration
+                .build();
+
+            MessagingActivity.builder()
+                .withMessagingConfiguration(messagingConfig)
+                .show(activity);
         } else {
             Log.e(TAG, "Could not load getCurrentActivity -- no UI can be displayed without it.");
         }
