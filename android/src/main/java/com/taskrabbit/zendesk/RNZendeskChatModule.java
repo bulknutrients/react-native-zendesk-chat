@@ -385,6 +385,23 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         currentUserTags = allProvidedTags;
     }
 
+    private MessagingConfiguration.Builder loadBotSettings(ReadableMap options,
+            MessagingConfiguration.Builder builder) {
+        if (options == null) {
+            return builder;
+        }
+        String botName = getStringOrNull(options, "botName", "loadBotSettings");
+        if (botName != null) {
+            builder = builder.withBotLabelString(botName);
+        }
+        int avatarDrawable = getIntOrDefault(options, "botAvatarDrawableId", "loadBotSettings", -1);
+        if (avatarDrawable != -1) {
+            builder = builder.withBotAvatarDrawable(avatarDrawable);
+        }
+
+        return builder;
+    }
+
     @ReactMethod
     public void startChat(ReadableMap options) {
         if (Chat.INSTANCE.providers() == null) {
@@ -424,20 +441,18 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
 
         loadTags(options);
 
+        MessagingConfiguration.Builder messagingBuilder = loadBotSettings(
+                getReadableMap(options, "messagingOptions", "startChat"), MessagingActivity.builder());
+
         // Observer to restart unread message counter after chat closes
         setupChatCloseObserver();
 
         Activity activity = getCurrentActivity();
         if (activity != null) {
-            // Launch Zendesk chat with classic MessagingActivity and ChatEngine
-            MessagingConfiguration messagingConfig = new MessagingConfiguration.Builder()
-                .withEngines(ChatEngine.engine())
-                .withChatConfiguration(chatConfig) // ✅ attach the built ChatConfiguration
-                .build();
-
+            // Use the correct approach with MessagingActivity.builder()
             MessagingActivity.builder()
-                .withMessagingConfiguration(messagingConfig)
-                .show(activity);
+                .withEngines(ChatEngine.engine())
+                .show(activity, chatConfig);
         } else {
             Log.e(TAG, "Could not load getCurrentActivity -- no UI can be displayed without it.");
         }
