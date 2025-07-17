@@ -3,6 +3,8 @@
 
 @interface RCT_EXTERN_MODULE(RNZendeskChatModule, RCTEventEmitter)
 
+RCT_EXTERN_METHOD(init:(NSString *)zendeskKey appId:(NSString *)appId)
+
 RCT_EXTERN_METHOD(setVisitorInfo:(NSDictionary *)options)
 
 RCT_EXTERN_METHOD(startChat:(NSDictionary *)options)

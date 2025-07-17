@@ -31,16 +31,16 @@ class CustomZendeskNavigationController: UINavigationController {
         
         let navBar = navigationBar
         
-        // Force the background color
+        // Background colors
         navBar.barTintColor = backgroundColor
         navBar.backgroundColor = backgroundColor
         navBar.isTranslucent = false
         
-        // Set text colors
+        // Text colors
         navBar.titleTextAttributes = [NSAttributedString.Key.foregroundColor: textColor]
         navBar.tintColor = textColor
         
-        // For iOS 13+
+        // iOS 13+ appearance
         if #available(iOS 13.0, *) {
             let appearance = UINavigationBarAppearance()
             appearance.configureWithOpaqueBackground()
@@ -56,12 +56,11 @@ class CustomZendeskNavigationController: UINavigationController {
             }
         }
         
-        // Force status bar style
         setNeedsStatusBarAppearanceUpdate()
     }
     
     override var preferredStatusBarStyle: UIStatusBarStyle {
-        return .lightContent // White status bar text
+        return .lightContent
     }
 }
 
@@ -70,6 +69,7 @@ class ZendeskChatMessageCounter: NSObject {
     typealias UnreadMessageCountChangeCallback = (Int) -> Void
     
     var onUnreadMessageCountChange: UnreadMessageCountChangeCallback?
+    
     var isActive: Bool = false {
         didSet {
             if isActive != oldValue {
@@ -85,7 +85,7 @@ class ZendeskChatMessageCounter: NSObject {
     private(set) var numberOfUnreadMessages: Int = 0 {
         didSet {
             if numberOfUnreadMessages != oldValue {
-                print("[ZendeskChatMessageCounter] Unread count changing from \(oldValue) to \(numberOfUnreadMessages)")
+                print("[ZendeskChatMessageCounter] Unread count changed from \(oldValue) to \(numberOfUnreadMessages)")
                 onUnreadMessageCountChange?(numberOfUnreadMessages)
             }
         }
@@ -103,7 +103,7 @@ class ZendeskChatMessageCounter: NSObject {
     }
     
     func startMessageCounterIfNeeded() {
-        print("[ZendeskChatMessageCounter] Starting message counter if needed, isActive: \(isActive)")
+        print("[ZendeskChatMessageCounter] startMessageCounterIfNeeded, isActive: \(isActive)")
         if !isActive {
             markCurrentPositionAsRead()
             isActive = true
@@ -112,30 +112,28 @@ class ZendeskChatMessageCounter: NSObject {
     
     func markCurrentPositionAsRead() {
         guard let chatProvider = Chat.chatProvider,
-              let chatState = chatProvider.chatState else { return }
-        
-        let logs = chatState.logs
-        if let lastLog = logs.last {
-            // Try different property names for the log ID
-            var logId: String?
-            
-            if lastLog.responds(to: #selector(getter: NSObject.description)) {
-                // Try to get ID using different methods
-                if let id = lastLog.value(forKey: "id") as? String {
-                    logId = id
-                } else if let messageId = lastLog.value(forKey: "messageId") as? String {
-                    logId = messageId
-                } else if let logIdValue = lastLog.value(forKey: "logId") as? String {
-                    logId = logIdValue
-                } else {
-                    // Fallback to timestamp
-                    logId = String(format: "%.0f", lastLog.createdTimestamp)
-                }
-            }
-            
-            lastSeenMessageId = logId
-            print("[ZendeskChatMessageCounter] Marked position as read: \(logId ?? "nil")")
+              let chatState = chatProvider.chatState,
+              let lastLog = chatState.logs.last else {
+            print("[ZendeskChatMessageCounter] No chat logs to mark as read")
+            return
         }
+        
+        var logId: String? = nil
+        
+        // Try multiple keys to get an ID
+        if let id = lastLog.value(forKey: "id") as? String {
+            logId = id
+        } else if let messageId = lastLog.value(forKey: "messageId") as? String {
+            logId = messageId
+        } else if let logIdValue = lastLog.value(forKey: "logId") as? String {
+            logId = logIdValue
+        } else {
+            // Fallback to timestamp string
+            logId = String(format: "%.0f", lastLog.createdTimestamp)
+        }
+        
+        lastSeenMessageId = logId
+        print("[ZendeskChatMessageCounter] Marked position as read: \(logId ?? "nil")")
     }
     
     func stopMessageCounter() {
@@ -146,9 +144,8 @@ class ZendeskChatMessageCounter: NSObject {
     }
     
     func connectToChat() {
-        print("[ZendeskChatMessageCounter] Connecting to chat, isActive: \(isActive)")
+        print("[ZendeskChatMessageCounter] connectToChat, isActive: \(isActive)")
         guard isActive else { return }
-        
         connect()
         startObservingChat()
     }
@@ -164,12 +161,12 @@ class ZendeskChatMessageCounter: NSObject {
     
     func updateUnreadMessageCount() {
         let unreadMessages = getUnreadMessages()
-        print("[ZendeskChatMessageCounter] Updating unread count: \(unreadMessages.count) messages")
+        print("[ZendeskChatMessageCounter] Updating unread message count: \(unreadMessages.count)")
         numberOfUnreadMessages = unreadMessages.count
     }
     
     func resetUnreadMessageCount() {
-        print("[ZendeskChatMessageCounter] Resetting unread count to 0")
+        print("[ZendeskChatMessageCounter] Resetting unread message count to 0")
         numberOfUnreadMessages = 0
         markCurrentPositionAsRead()
     }
@@ -177,23 +174,23 @@ class ZendeskChatMessageCounter: NSObject {
     private func getUnreadMessages() -> [ChatLog] {
         guard isActive,
               let chatProvider = Chat.chatProvider,
-              let chatState = chatProvider.chatState else { return [] }
+              let chatState = chatProvider.chatState else {
+            return []
+        }
         
         let logs = chatState.logs
         guard !logs.isEmpty else { return [] }
         
-        // If no last seen message, count all agent messages
         guard let lastSeenId = lastSeenMessageId else {
+            // No last seen ID - count all agent messages
             return logs.filter { $0.participant == ChatParticipant.agent }
         }
         
-        // Find messages after the last seen message
         var unreadLogs: [ChatLog] = []
         var foundLastSeen = false
         
         for log in logs {
-            // Try to get log ID
-            var logId: String?
+            var logId: String? = nil
             
             if let id = log.value(forKey: "id") as? String {
                 logId = id
@@ -226,73 +223,75 @@ class ZendeskChatMessageCounter: NSObject {
         // Observe connection status
         if let connectionProvider = Chat.connectionProvider {
             let connectionToken = connectionProvider.observeConnectionStatus { [weak self] status in
+                guard let self = self else { return }
                 print("[ZendeskChatMessageCounter] Connection status changed: \(status.rawValue)")
                 if status == .connected {
-                    self?.observeChatState()
+                    self.observeChatState()
                 }
             }
             observationTokens.append(connectionToken)
         }
         
-        // Start observing chat state immediately if already connected
+        // If already connected, observe chat state immediately
         if Chat.connectionProvider?.status == .connected {
             observeChatState()
         }
         
-        // Observe application events
+        // Observe app lifecycle notifications
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationDidEnterBackground),
             name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
+            object: nil)
         
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationWillEnterForeground),
             name: UIApplication.willEnterForegroundNotification,
-            object: nil
-        )
+            object: nil)
     }
     
     private func observeChatState() {
         print("[ZendeskChatMessageCounter] Setting up chat state observer")
         
-        if let chatProvider = Chat.chatProvider {
-            let chatStateToken = chatProvider.observeChatState { [weak self] state in
-                guard let self = self else { return }
-                
-                print("[ZendeskChatMessageCounter] Chat state changed - isChatting: \(state?.isChatting ?? false), logs count: \(state?.logs.count ?? 0)")
-                
-                guard Chat.connectionProvider?.status == .connected else {
-                    print("[ZendeskChatMessageCounter] Not connected, skipping update")
-                    return
-                }
-                
-                guard state?.isChatting == true else {
-                    print("[ZendeskChatMessageCounter] Chat not active, stopping counter")
-                    self.stopMessageCounter()
-                    return
-                }
-                
-                if self.isActive {
-                    self.updateUnreadMessageCount()
-                }
+        guard let chatProvider = Chat.chatProvider else { return }
+        
+        let chatStateToken = chatProvider.observeChatState { [weak self] state in
+            guard let self = self else { return }
+            let isChatting = state?.isChatting ?? false
+            let logsCount = state?.logs.count ?? 0
+            print("[ZendeskChatMessageCounter] Chat state changed - isChatting: \(isChatting), logs count: \(logsCount)")
+            
+            guard Chat.connectionProvider?.status == .connected else {
+                print("[ZendeskChatMessageCounter] Not connected, skipping unread count update")
+                return
             }
-            observationTokens.append(chatStateToken)
+            
+            guard isChatting else {
+                print("[ZendeskChatMessageCounter] Chat inactive, stopping counter")
+                self.stopMessageCounter()
+                return
+            }
+            
+            if self.isActive {
+                self.updateUnreadMessageCount()
+            }
         }
+        
+        observationTokens.append(chatStateToken)
     }
     
     private func stopObservingChat() {
         print("[ZendeskChatMessageCounter] Stopping chat observation")
         
-        // Cancel all observation tokens
+        // Cancel tokens if possible
         for token in observationTokens {
-            if let cancellable = token as? NSObjectProtocol & NSCopying {
-                // Try to cancel if the token has a cancel method
-                if cancellable.responds(to: #selector(Operation.cancel)) {
-                    cancellable.perform(#selector(Operation.cancel))
-                }
+            if let cancellable = token as? NSObjectProtocol {
+                NotificationCenter.default.removeObserver(cancellable)
+            }
+            // If tokens conform to Cancellable, call cancel (depends on SDK)
+            if let cancellable = token as? Cancellable {
+                cancellable.cancel()
             }
         }
         observationTokens.removeAll()
@@ -302,12 +301,12 @@ class ZendeskChatMessageCounter: NSObject {
     }
     
     @objc private func applicationDidEnterBackground() {
-        print("[ZendeskChatMessageCounter] App entering background")
-        // Don't disconnect - keep counting in background
+        print("[ZendeskChatMessageCounter] App entered background")
+        // Keep counting in background, so no disconnect here
     }
     
     @objc private func applicationWillEnterForeground() {
-        print("[ZendeskChatMessageCounter] App entering foreground")
+        print("[ZendeskChatMessageCounter] App will enter foreground")
         if isActive {
             connect()
             updateUnreadMessageCount()
@@ -328,9 +327,7 @@ class RNZendeskChatModule: RCTEventEmitter {
     
     override init() {
         super.init()
-        if let messaging = Messaging.instance {
-            messaging.setDelegate(self)
-        }
+        // Initialize messageCounter here or later
         isUnreadMessageCounterActive = false
     }
     
@@ -342,10 +339,9 @@ class RNZendeskChatModule: RCTEventEmitter {
         return ["unreadMessageCountChanged", "chatWillShow", "chatWillClose"]
     }
     
-    // MARK: - Required methods for NativeModule interface
     override func addListener(_ eventName: String!) {
         super.addListener(eventName)
-        // Keep track of listeners if needed
+        // Optionally track listeners
     }
     
     override func removeListeners(_ count: Double) {
@@ -363,7 +359,6 @@ class RNZendeskChatModule: RCTEventEmitter {
         // Called when the last listener is removed
     }
     
-    // MARK: - Helper Methods
     private func setIsUnreadMessageCounterActive(_ active: Bool) {
         isUnreadMessageCounterActive = active
         messageCounter?.isActive = active
@@ -384,14 +379,13 @@ class RNZendeskChatModule: RCTEventEmitter {
         )
         config.visitorInfo = visitorInfo
         
-        print("[RNZendeskChatModule] Applied visitor info: department: \(config.department ?? "nil"), tags: \(config.tags ?? []), email: \(visitorInfo?.email ?? "nil"), name: \(visitorInfo?.name ?? "nil"), phone: \(visitorInfo?.phoneNumber ?? "nil")")
+        print("[RNZendeskChatModule] Visitor info applied: department=\(config.department ?? "nil"), tags=\(config.tags ?? []), name=\(visitorInfo?.name ?? "nil"), email=\(visitorInfo?.email ?? "nil"), phone=\(visitorInfo?.phoneNumber ?? "nil")")
         
         return config
     }
     
     private func messagingConfiguration(from options: [String: Any]?) -> MessagingConfiguration {
         let config = MessagingConfiguration()
-        
         guard let options = options else { return config }
         
         if let botName = options["botName"] as? String {
@@ -415,24 +409,23 @@ class RNZendeskChatModule: RCTEventEmitter {
         
         func parseFormFieldStatus(_ key: String) -> FormFieldStatus {
             guard let value = options[key] as? String else { return .optional }
-            switch value {
-            case "required": return .required
-            case "optional": return .optional
-            case "hidden": return .hidden
-            default: return .optional
+            switch value.lowercased() {
+            case "required":
+                return .required
+            case "optional":
+                return .optional
+            case "hidden":
+                return .hidden
+            default:
+                return .optional
             }
         }
         
-        let name = parseFormFieldStatus("name")
-        let email = parseFormFieldStatus("email")
-        let phone = parseFormFieldStatus("phone")
-        let department = parseFormFieldStatus("department")
-        
         return ChatFormConfiguration(
-            name: name,
-            email: email,
-            phoneNumber: phone,
-            department: department
+            name: parseFormFieldStatus("name"),
+            email: parseFormFieldStatus("email"),
+            phoneNumber: parseFormFieldStatus("phone"),
+            department: parseFormFieldStatus("department")
         )
     }
     
@@ -450,8 +443,8 @@ class RNZendeskChatModule: RCTEventEmitter {
         config.isAgentAvailabilityEnabled = behaviorFlags["showAgentAvailability"] as? Bool ?? true
         
         if config.isPreChatFormEnabled,
-           let preChatFormOptions = options["preChatFormOptions"] as? [String: Any],
-           let formConfig = preChatFormConfiguration(from: preChatFormOptions) {
+           let preChatOptions = options["preChatFormOptions"] as? [String: Any],
+           let formConfig = preChatFormConfiguration(from: preChatOptions) {
             config.preChatFormConfiguration = formConfig
         }
         
@@ -463,32 +456,39 @@ class RNZendeskChatModule: RCTEventEmitter {
     }
     
     private func colorFromHexString(_ hexString: String) -> UIColor {
-        var rgbValue: UInt32 = 0
-        let scanner = Scanner(string: hexString)
-        scanner.currentIndex = hexString.hasPrefix("#") ? hexString.index(after: hexString.startIndex) : hexString.startIndex
-        scanner.scanHexInt32(&rgbValue)
+        var hex = hexString.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if hex.hasPrefix("#") {
+            hex.remove(at: hex.startIndex)
+        }
+        
+        guard hex.count == 6 else {
+            return .black
+        }
+        
+        var rgbValue: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&rgbValue)
         
         return UIColor(
-            red: CGFloat((rgbValue >> 16) & 0xFF) / 255.0,
-            green: CGFloat((rgbValue >> 8) & 0xFF) / 255.0,
-            blue: CGFloat(rgbValue & 0xFF) / 255.0,
-            alpha: 1.0
-        )
+            red: CGFloat((rgbValue & 0xFF0000) >> 16)/255.0,
+            green: CGFloat((rgbValue & 0x00FF00) >> 8)/255.0,
+            blue: CGFloat(rgbValue & 0x0000FF)/255.0,
+            alpha: 1.0)
     }
     
-    // MARK: - React Native Methods
+    // MARK: - React Native exposed methods
+    
     @objc func setVisitorInfo(_ options: [String: Any]) {
         DispatchQueue.main.async {
             let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
-            Chat.configuration = self.applyVisitorInfo(options, intoConfig: config)
-            self.visitorAPIConfig = Chat.configuration
+            Chat.instance.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            self.visitorAPIConfig = Chat.instance.configuration
         }
     }
     
     @objc func startChat(_ options: [String: Any]) {
         DispatchQueue.main.async {
             guard !self.isChatActive() else {
-                print("[RNZendeskChatModule] Chat already active, bringing to front")
+                print("[RNZendeskChatModule] Chat is already active, bringing to front")
                 return
             }
             
@@ -497,12 +497,12 @@ class RNZendeskChatModule: RCTEventEmitter {
             
             let chatConfig = self.chatConfiguration(from: options)
             
-            // Create engines if needed
+            // Create chat engines if nil
             if self.chatEngines == nil {
                 do {
                     self.chatEngines = [try ChatEngine.engine()]
                 } catch {
-                    print("[RNZendeskChatModule] Internal Error loading ChatEngine: \(error)")
+                    print("[RNZendeskChatModule] Error loading ChatEngine: \(error)")
                     return
                 }
             }
@@ -512,18 +512,18 @@ class RNZendeskChatModule: RCTEventEmitter {
             let messagingConfig = self.messagingConfiguration(from: options["messagingOptions"] as? [String: Any])
             
             do {
-                let viewController = try Messaging.instance?.buildUI(
-                    withEngines: engines,
-                    configs: [chatConfig, messagingConfig]
-                )
+                guard let messagingInstance = Messaging.instance else {
+                    print("[RNZendeskChatModule] Messaging instance not available")
+                    return
+                }
+                
+                let viewController = try messagingInstance.buildUI(withEngines: engines, configs: [chatConfig, messagingConfig])
                 
                 guard let vc = viewController else { return }
                 
-                // Enhanced color customization
                 vc.modalPresentationStyle = .fullScreen
                 vc.view.tintColor = self.colorFromHexString("#E79024")
                 
-                // Create close button
                 let closeTitle = options["localizedDismissButtonTitle"] as? String ?? "Close"
                 vc.navigationItem.leftBarButtonItem = UIBarButtonItem(
                     title: closeTitle,
@@ -532,36 +532,35 @@ class RNZendeskChatModule: RCTEventEmitter {
                     action: #selector(self.dismissChatUI)
                 )
                 
-                // Create custom navigation controller
                 let navController = CustomZendeskNavigationController(rootViewController: vc)
                 navController.customBackgroundColor = self.colorFromHexString("#E79024")
                 navController.customTextColor = .white
                 self.chatController = navController
                 
-                // Apply initial styling
                 navController.applyCustomStyling()
                 
-                // Clean up existing timer
+                // Invalidate previous timer
                 self.stylingTimer?.invalidate()
                 self.stylingTimer = nil
                 
-                // Set up styling timer
-                self.stylingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-                    guard self.chatController?.presentingViewController != nil else {
+                // Timer to periodically re-apply styling while chat is presented
+                self.stylingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+                    guard let self = self,
+                          self.chatController?.presentingViewController != nil else {
                         timer.invalidate()
-                        self.stylingTimer = nil
+                        self?.stylingTimer = nil
                         return
                     }
                     self.chatController?.applyCustomStyling()
                 }
                 
-                // Present the chat
+                // Present chat UI
                 RCTPresentedViewController()?.present(navController, animated: true) {
                     navController.applyCustomStyling()
                 }
                 
             } catch {
-                print("[RNZendeskChatModule] Internal Error building MessagingUI: \(error)")
+                print("[RNZendeskChatModule] Error building Messaging UI: \(error)")
             }
         }
     }
@@ -569,21 +568,21 @@ class RNZendeskChatModule: RCTEventEmitter {
     @objc func getUnreadMessageCount(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         DispatchQueue.main.async {
             let count = self.messageCounter?.numberOfUnreadMessages ?? 0
-            print("[RNZendeskChatModule] Getting unread count: \(count)")
+            print("[RNZendeskChatModule] getUnreadMessageCount: \(count)")
             resolve(count)
         }
     }
     
     @objc func resetUnreadMessageCount() {
         DispatchQueue.main.async {
-            print("[RNZendeskChatModule] Resetting unread count")
+            print("[RNZendeskChatModule] resetUnreadMessageCount called")
             self.messageCounter?.resetUnreadMessageCount()
         }
     }
     
     @objc func forceUpdateMessageCount() {
         DispatchQueue.main.async {
-            print("[RNZendeskChatModule] Force updating message count")
+            print("[RNZendeskChatModule] forceUpdateMessageCount called")
             if let counter = self.messageCounter, counter.isActive {
                 counter.updateUnreadMessageCount()
             }
@@ -597,23 +596,22 @@ class RNZendeskChatModule: RCTEventEmitter {
             Chat.initialize(accountKey: zendeskKey, queue: DispatchQueue.main)
         }
         
-        // Initialize message counter
         messageCounter = ZendeskChatMessageCounter()
         
         messageCounter?.onUnreadMessageCountChange = { [weak self] count in
             self?.sendEvent(withName: "unreadMessageCountChanged", body: ["count": count])
         }
         
-        // Auto-enable message counter
         setIsUnreadMessageCounterActive(true)
         messageCounter?.connectToChat()
+        
         print("[RNZendeskChatModule] Message counter enabled automatically")
     }
     
     @objc func registerPushToken(_ token: String) {
         DispatchQueue.main.async {
             guard let tokenData = token.data(using: .utf8) else {
-                print("[RNZendeskChatModule] Failed to convert token to data")
+                print("[RNZendeskChatModule] Failed to convert push token to data")
                 return
             }
             Chat.registerPushToken(tokenData)
@@ -621,16 +619,17 @@ class RNZendeskChatModule: RCTEventEmitter {
     }
     
     @objc func areAgentsOnline(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-        if let accountProvider = Chat.accountProvider {
-            accountProvider.getAccount { account, error in
-                if let account = account {
-                    resolve(account.accountStatus == .online)
-                } else {
-                    reject("no-available-zendesk-account", "DevError: Not connected to Zendesk or network issue", error)
-                }
-            }
-        } else {
+        guard let accountProvider = Chat.accountProvider else {
             reject("no-account-provider", "Account provider is not available", nil)
+            return
+        }
+        
+        accountProvider.fetchAccount { account, error in
+            if let account = account {
+                resolve(account.accountStatus == .online)
+            } else {
+                reject("no-available-zendesk-account", "Not connected to Zendesk or network error", error)
+            }
         }
     }
     
@@ -662,27 +661,25 @@ extension RNZendeskChatModule: MessagingDelegate {
         case .viewWillAppear:
             print("[RNZendeskChatModule] Chat will appear - pausing message counter")
             sendEvent(withName: "chatWillShow", body: [:])
-            // Mark current position as read and pause counter
             messageCounter?.markCurrentPositionAsRead()
             messageCounter?.isActive = false
             
         case .viewWillDisappear:
             print("[RNZendeskChatModule] Chat will disappear - starting message counter")
             sendEvent(withName: "chatWillClose", body: [:])
-            // Start the message counter
             messageCounter?.startMessageCounterIfNeeded()
             
         case .viewControllerDidClose:
-            print("[RNZendeskChatModule] Chat did close - ensuring message counter is active")
-            // Ensure counter is running
+            print("[RNZendeskChatModule] Chat did close - ensuring message counter active")
             setIsUnreadMessageCounterActive(true)
             messageCounter?.connectToChat()
+            
         default:
             break
         }
     }
     
     func messaging(_ messaging: Messaging, shouldOpenURL url: URL) -> Bool {
-        return true // Default implementation opens in Safari
+        return true // Default behavior opens URL in Safari
     }
 }
