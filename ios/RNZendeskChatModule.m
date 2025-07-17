@@ -698,7 +698,7 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
         __weak typeof(self) weakSelf = self;
         _messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
             // Only send event if there are listeners
-            if (weakSelf._hasListeners) {
+            if (weakSelf->_hasListeners) {
                 [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
                                        body:@{@"count": @(numberOfUnreadMessages)}];
             } else {
