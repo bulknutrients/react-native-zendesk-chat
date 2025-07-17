@@ -36,6 +36,7 @@ import zendesk.chat.PreChatFormFieldStatus;
 import zendesk.chat.PushNotificationsProvider;
 import zendesk.chat.VisitorInfo;
 import zendesk.classic.messaging.MessagingActivity;
+import zendesk.classic.messaging.MessagingConfiguration;
 
 import com.zendesk.service.ErrorResponse;
 import com.zendesk.service.ZendeskCallback;
