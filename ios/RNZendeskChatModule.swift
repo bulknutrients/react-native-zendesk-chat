@@ -668,7 +668,7 @@ extension RNZendeskChatModule: MessagingDelegate {
         }
     }
     
-    func messaging(_ messaging: Messaging, shouldOpen url: URL) -> Bool {
+    func messaging(_ messaging: Messaging, shouldOpenURL url: URL) -> Bool {
         return true // Default implementation opens in Safari
     }
 }
