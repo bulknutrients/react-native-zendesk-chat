@@ -91,11 +91,11 @@ class ZendeskChatMessageCounter: NSObject {
         }
     }
     
-    private let chat: ZDKChat
+    private let chat: Chat
     private var observationTokens: [Any] = []
     private var lastSeenMessageId: String?
     
-    init(chat: ZDKChat) {
+    init(chat: Chat) {
         self.chat = chat
         super.init()
     }
@@ -171,7 +171,7 @@ class ZendeskChatMessageCounter: NSObject {
         markCurrentPositionAsRead()
     }
     
-    private func getUnreadMessages() -> [ZDKChatLog] {
+    private func getUnreadMessages() -> [ChatLog] {
         guard isActive else { return [] }
         
         let logs = chat.chatProvider?.chatState?.logs ?? []
@@ -183,7 +183,7 @@ class ZendeskChatMessageCounter: NSObject {
         }
         
         // Find messages after the last seen message
-        var unreadLogs: [ZDKChatLog] = []
+        var unreadLogs: [ChatLog] = []
         var foundLastSeen = false
         
         for log in logs {
@@ -314,16 +314,16 @@ class ZendeskChatMessageCounter: NSObject {
 @objc(RNZendeskChatModule)
 class RNZendeskChatModule: RCTEventEmitter {
     
-    private var visitorAPIConfig: ZDKChatAPIConfiguration?
+    private var visitorAPIConfig: ChatAPIConfiguration?
     private var chatController: CustomZendeskNavigationController?
     private var stylingTimer: Timer?
-    private var chatEngines: [ZDKChatEngine]?
+    private var chatEngines: [ChatEngine]?
     private var messageCounter: ZendeskChatMessageCounter?
     private var isUnreadMessageCounterActive = false
     
     override init() {
         super.init()
-        ZDKClassicMessaging.instance()?.setDelegate(self)
+        ClassicMessaging.instance()?.setDelegate(self)
         isUnreadMessageCounterActive = false
     }
     
@@ -362,7 +362,7 @@ class RNZendeskChatModule: RCTEventEmitter {
         messageCounter?.isActive = active
     }
     
-    private func applyVisitorInfo(_ options: [String: Any], intoConfig config: ZDKChatAPIConfiguration) -> ZDKChatAPIConfiguration {
+    private func applyVisitorInfo(_ options: [String: Any], intoConfig config: ChatAPIConfiguration) -> ChatAPIConfiguration {
         if let department = options["department"] as? String {
             config.department = department
         }
@@ -370,7 +370,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             config.tags = tags
         }
         
-        let visitorInfo = ZDKVisitorInfo(
+        let visitorInfo = VisitorInfo(
             name: options["name"] as? String,
             email: options["email"] as? String,
             phoneNumber: options["phone"] as? String
@@ -382,8 +382,8 @@ class RNZendeskChatModule: RCTEventEmitter {
         return config
     }
     
-    private func messagingConfiguration(from options: [String: Any]?) -> ZDKClassicMessagingConfiguration {
-        let config = ZDKClassicMessagingConfiguration()
+    private func messagingConfiguration(from options: [String: Any]?) -> ClassicMessagingConfiguration {
+        let config = ClassicMessagingConfiguration()
         
         guard let options = options else { return config }
         
@@ -401,10 +401,10 @@ class RNZendeskChatModule: RCTEventEmitter {
         return config
     }
     
-    private func preChatFormConfiguration(from options: [String: Any]?) -> ZDKChatFormConfiguration? {
+    private func preChatFormConfiguration(from options: [String: Any]?) -> ChatFormConfiguration? {
         guard let options = options else { return nil }
         
-        func parseFormFieldStatus(_ key: String) -> ZDKFormFieldStatus {
+        func parseFormFieldStatus(_ key: String) -> FormFieldStatus {
             guard let value = options[key] as? String else { return .optional }
             switch value {
             case "required": return .required
@@ -419,7 +419,7 @@ class RNZendeskChatModule: RCTEventEmitter {
         let phone = parseFormFieldStatus("phone")
         let department = parseFormFieldStatus("department")
         
-        return ZDKChatFormConfiguration(
+        return ChatFormConfiguration(
             name: name,
             email: email,
             phoneNumber: phone,
@@ -427,8 +427,8 @@ class RNZendeskChatModule: RCTEventEmitter {
         )
     }
     
-    private func chatConfiguration(from options: [String: Any]?) -> ZDKChatConfiguration {
-        let config = ZDKChatConfiguration()
+    private func chatConfiguration(from options: [String: Any]?) -> ChatConfiguration {
+        let config = ChatConfiguration()
         
         guard let options = options,
               let behaviorFlags = options["behaviorFlags"] as? [String: Any] else {
@@ -470,9 +470,9 @@ class RNZendeskChatModule: RCTEventEmitter {
     // MARK: - React Native Methods
     @objc func setVisitorInfo(_ options: [String: Any]) {
         DispatchQueue.main.async {
-            let config = self.visitorAPIConfig ?? ZDKChatAPIConfiguration()
-            ZDKChat.instance()?.configuration = self.applyVisitorInfo(options, intoConfig: config)
-            self.visitorAPIConfig = ZDKChat.instance()?.configuration
+            let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
+            Chat.instance()?.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            self.visitorAPIConfig = Chat.instance()?.configuration
         }
     }
     
@@ -483,17 +483,17 @@ class RNZendeskChatModule: RCTEventEmitter {
                 return
             }
             
-            let config = self.visitorAPIConfig ?? ZDKChatAPIConfiguration()
-            ZDKChat.instance()?.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
+            Chat.instance()?.configuration = self.applyVisitorInfo(options, intoConfig: config)
             
             let chatConfig = self.chatConfiguration(from: options)
             
             // Create engines if needed
             if self.chatEngines == nil {
                 do {
-                    self.chatEngines = [try ZDKChatEngine.engine()]
+                    self.chatEngines = [try ChatEngine.engine()]
                 } catch {
-                    print("[RNZendeskChatModule] Internal Error loading ZDKChatEngine: \(error)")
+                    print("[RNZendeskChatModule] Internal Error loading ChatEngine: \(error)")
                     return
                 }
             }
@@ -503,7 +503,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             let messagingConfig = self.messagingConfiguration(from: options["messagingOptions"] as? [String: Any])
             
             do {
-                let viewController = try ZDKClassicMessaging.instance()?.buildUI(
+                let viewController = try ClassicMessaging.instance()?.buildUI(
                     withEngines: engines,
                     configs: [chatConfig, messagingConfig]
                 )
@@ -552,7 +552,7 @@ class RNZendeskChatModule: RCTEventEmitter {
                 }
                 
             } catch {
-                print("[RNZendeskChatModule] Internal Error building ZDKMessagingUI: \(error)")
+                print("[RNZendeskChatModule] Internal Error building MessagingUI: \(error)")
             }
         }
     }
@@ -583,13 +583,13 @@ class RNZendeskChatModule: RCTEventEmitter {
     
     @objc func _initWith2Args(_ zendeskKey: String, appId: String?) {
         if let appId = appId {
-            ZDKChat.initialize(withAccountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
+            Chat.initialize(withAccountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
         } else {
-            ZDKChat.initialize(withAccountKey: zendeskKey, queue: DispatchQueue.main)
+            Chat.initialize(withAccountKey: zendeskKey, queue: DispatchQueue.main)
         }
         
         // Initialize message counter
-        if let chat = ZDKChat.instance() {
+        if let chat = Chat.instance() {
             messageCounter = ZendeskChatMessageCounter(chat: chat)
             
             messageCounter?.onUnreadMessageCountChange = { [weak self] count in
@@ -605,12 +605,12 @@ class RNZendeskChatModule: RCTEventEmitter {
     
     @objc func registerPushToken(_ token: String) {
         DispatchQueue.main.async {
-            ZDKChat.registerPushToken(token)
+            Chat.registerPushToken(token)
         }
     }
     
     @objc func areAgentsOnline(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-        ZDKChat.accountProvider()?.getAccount { account, error in
+        Chat.accountProvider()?.getAccount { account, error in
             if let account = account {
                 resolve(account.accountStatus == .online)
             } else {
@@ -640,9 +640,9 @@ class RNZendeskChatModule: RCTEventEmitter {
     }
 }
 
-// MARK: - ZDKClassicMessagingDelegate
-extension RNZendeskChatModule: ZDKClassicMessagingDelegate {
-    func messaging(_ messaging: ZDKClassicMessaging, didPerformEvent event: ZDKClassicMessagingUIEvent, context: Any?) {
+// MARK: - ClassicMessagingDelegate
+extension RNZendeskChatModule: ClassicMessagingDelegate {
+    func messaging(_ messaging: ClassicMessaging, didPerformEvent event: ClassicMessagingUIEvent, context: Any?) {
         switch event {
         case .viewWillAppear:
             print("[RNZendeskChatModule] Chat will appear - pausing message counter")
@@ -668,7 +668,7 @@ extension RNZendeskChatModule: ZDKClassicMessagingDelegate {
         }
     }
     
-    func messaging(_ messaging: ZDKClassicMessaging, shouldOpen url: URL) -> Bool {
+    func messaging(_ messaging: ClassicMessaging, shouldOpen url: URL) -> Bool {
         return true // Default implementation opens in Safari
     }
 }
