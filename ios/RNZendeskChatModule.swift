@@ -91,12 +91,10 @@ class ZendeskChatMessageCounter: NSObject {
         }
     }
     
-    private let chat: Chat
     private var observationTokens: [Any] = []
     private var lastSeenMessageId: String?
     
-    init(chat: Chat) {
-        self.chat = chat
+    override init() {
         super.init()
     }
     
@@ -113,7 +111,10 @@ class ZendeskChatMessageCounter: NSObject {
     }
     
     func markCurrentPositionAsRead() {
-        let logs = chat.chatProvider?.chatState?.logs ?? []
+        guard let chatProvider = Chat.chatProvider,
+              let chatState = chatProvider.chatState else { return }
+        
+        let logs = chatState.logs
         if let lastLog = logs.last {
             // Try different property names for the log ID
             var logId: String?
@@ -153,9 +154,11 @@ class ZendeskChatMessageCounter: NSObject {
     }
     
     private func connect() {
-        if chat.connectionProvider?.status != .connected {
+        guard let connectionProvider = Chat.connectionProvider else { return }
+        
+        if connectionProvider.status != .connected {
             print("[ZendeskChatMessageCounter] Connecting to chat provider")
-            chat.connectionProvider?.connect()
+            connectionProvider.connect()
         }
     }
     
@@ -172,14 +175,16 @@ class ZendeskChatMessageCounter: NSObject {
     }
     
     private func getUnreadMessages() -> [ChatLog] {
-        guard isActive else { return [] }
+        guard isActive,
+              let chatProvider = Chat.chatProvider,
+              let chatState = chatProvider.chatState else { return [] }
         
-        let logs = chat.chatProvider?.chatState?.logs ?? []
+        let logs = chatState.logs
         guard !logs.isEmpty else { return [] }
         
         // If no last seen message, count all agent messages
         guard let lastSeenId = lastSeenMessageId else {
-            return logs.filter { $0.participant == .agent }
+            return logs.filter { $0.participant == ChatParticipant.agent }
         }
         
         // Find messages after the last seen message
@@ -205,7 +210,7 @@ class ZendeskChatMessageCounter: NSObject {
                 continue
             }
             
-            if foundLastSeen && log.participant == .agent {
+            if foundLastSeen && log.participant == ChatParticipant.agent {
                 unreadLogs.append(log)
             }
         }
@@ -219,7 +224,7 @@ class ZendeskChatMessageCounter: NSObject {
         print("[ZendeskChatMessageCounter] Starting to observe chat")
         
         // Observe connection status
-        if let connectionProvider = chat.connectionProvider {
+        if let connectionProvider = Chat.connectionProvider {
             let connectionToken = connectionProvider.observeConnectionStatus { [weak self] status in
                 print("[ZendeskChatMessageCounter] Connection status changed: \(status.rawValue)")
                 if status == .connected {
@@ -230,7 +235,7 @@ class ZendeskChatMessageCounter: NSObject {
         }
         
         // Start observing chat state immediately if already connected
-        if chat.connectionProvider?.status == .connected {
+        if Chat.connectionProvider?.status == .connected {
             observeChatState()
         }
         
@@ -253,13 +258,13 @@ class ZendeskChatMessageCounter: NSObject {
     private func observeChatState() {
         print("[ZendeskChatMessageCounter] Setting up chat state observer")
         
-        if let chatProvider = chat.chatProvider {
+        if let chatProvider = Chat.chatProvider {
             let chatStateToken = chatProvider.observeChatState { [weak self] state in
                 guard let self = self else { return }
                 
-                print("[ZendeskChatMessageCounter] Chat state changed - isChatting: \(state?.isChatting ?? false), logs count: \(state?.logs?.count ?? 0)")
+                print("[ZendeskChatMessageCounter] Chat state changed - isChatting: \(state?.isChatting ?? false), logs count: \(state?.logs.count ?? 0)")
                 
-                guard self.chat.connectionProvider?.status == .connected else {
+                guard Chat.connectionProvider?.status == .connected else {
                     print("[ZendeskChatMessageCounter] Not connected, skipping update")
                     return
                 }
@@ -285,8 +290,8 @@ class ZendeskChatMessageCounter: NSObject {
         for token in observationTokens {
             if let cancellable = token as? NSObjectProtocol & NSCopying {
                 // Try to cancel if the token has a cancel method
-                if cancellable.responds(to: #selector(NSOperation.cancel)) {
-                    cancellable.performSelector(#selector(NSOperation.cancel))
+                if cancellable.responds(to: #selector(Operation.cancel)) {
+                    cancellable.perform(#selector(Operation.cancel))
                 }
             }
         }
@@ -323,7 +328,9 @@ class RNZendeskChatModule: RCTEventEmitter {
     
     override init() {
         super.init()
-        Messaging.instance()?.setDelegate(self)
+        if let messaging = Messaging.instance {
+            messaging.setDelegate(self)
+        }
         isUnreadMessageCounterActive = false
     }
     
@@ -390,12 +397,14 @@ class RNZendeskChatModule: RCTEventEmitter {
         if let botName = options["botName"] as? String {
             config.name = botName
         }
-        if let botAvatarName = options["botAvatarName"] as? String {
-            config.botAvatar = UIImage(named: botAvatarName)
+        if let botAvatarName = options["botAvatarName"] as? String,
+           let image = UIImage(named: botAvatarName) {
+            config.botAvatar = image
         } else if let botAvatarUrl = options["botAvatarUrl"] as? String,
                   let url = URL(string: botAvatarUrl),
-                  let data = try? Data(contentsOf: url) {
-            config.botAvatar = UIImage(data: data)
+                  let data = try? Data(contentsOf: url),
+                  let image = UIImage(data: data) {
+            config.botAvatar = image
         }
         
         return config
@@ -471,8 +480,8 @@ class RNZendeskChatModule: RCTEventEmitter {
     @objc func setVisitorInfo(_ options: [String: Any]) {
         DispatchQueue.main.async {
             let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
-            Chat.instance()?.configuration = self.applyVisitorInfo(options, intoConfig: config)
-            self.visitorAPIConfig = Chat.instance()?.configuration
+            Chat.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            self.visitorAPIConfig = Chat.configuration
         }
     }
     
@@ -484,7 +493,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             }
             
             let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
-            Chat.instance()?.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            Chat.configuration = self.applyVisitorInfo(options, intoConfig: config)
             
             let chatConfig = self.chatConfiguration(from: options)
             
@@ -503,7 +512,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             let messagingConfig = self.messagingConfiguration(from: options["messagingOptions"] as? [String: Any])
             
             do {
-                let viewController = try Messaging.instance()?.buildUI(
+                let viewController = try Messaging.instance?.buildUI(
                     withEngines: engines,
                     configs: [chatConfig, messagingConfig]
                 )
@@ -583,39 +592,45 @@ class RNZendeskChatModule: RCTEventEmitter {
     
     @objc func _initWith2Args(_ zendeskKey: String, appId: String?) {
         if let appId = appId {
-            Chat.initialize(withAccountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
+            Chat.initialize(accountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
         } else {
-            Chat.initialize(withAccountKey: zendeskKey, queue: DispatchQueue.main)
+            Chat.initialize(accountKey: zendeskKey, queue: DispatchQueue.main)
         }
         
         // Initialize message counter
-        if let chat = Chat.instance() {
-            messageCounter = ZendeskChatMessageCounter(chat: chat)
-            
-            messageCounter?.onUnreadMessageCountChange = { [weak self] count in
-                self?.sendEvent(withName: "unreadMessageCountChanged", body: ["count": count])
-            }
-            
-            // Auto-enable message counter
-            setIsUnreadMessageCounterActive(true)
-            messageCounter?.connectToChat()
-            print("[RNZendeskChatModule] Message counter enabled automatically")
+        messageCounter = ZendeskChatMessageCounter()
+        
+        messageCounter?.onUnreadMessageCountChange = { [weak self] count in
+            self?.sendEvent(withName: "unreadMessageCountChanged", body: ["count": count])
         }
+        
+        // Auto-enable message counter
+        setIsUnreadMessageCounterActive(true)
+        messageCounter?.connectToChat()
+        print("[RNZendeskChatModule] Message counter enabled automatically")
     }
     
     @objc func registerPushToken(_ token: String) {
         DispatchQueue.main.async {
-            Chat.registerPushToken(token)
+            guard let tokenData = token.data(using: .utf8) else {
+                print("[RNZendeskChatModule] Failed to convert token to data")
+                return
+            }
+            Chat.registerPushToken(tokenData)
         }
     }
     
     @objc func areAgentsOnline(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-        Chat.accountProvider()?.getAccount { account, error in
-            if let account = account {
-                resolve(account.accountStatus == .online)
-            } else {
-                reject("no-available-zendesk-account", "DevError: Not connected to Zendesk or network issue", error)
+        if let accountProvider = Chat.accountProvider {
+            accountProvider.getAccount { account, error in
+                if let account = account {
+                    resolve(account.accountStatus == .online)
+                } else {
+                    reject("no-available-zendesk-account", "DevError: Not connected to Zendesk or network issue", error)
+                }
             }
+        } else {
+            reject("no-account-provider", "Account provider is not available", nil)
         }
     }
     
@@ -662,7 +677,6 @@ extension RNZendeskChatModule: MessagingDelegate {
             // Ensure counter is running
             setIsUnreadMessageCounterActive(true)
             messageCounter?.connectToChat()
-            
         default:
             break
         }
