@@ -6,9 +6,10 @@ const RNZendeskChatModule = NativeModules.RNZendeskChatModule;
 // So this code implements the init method but makes sure to
 // always call it with two defined parameters, passing null for the second as needed
 // Reference: https://github.com/facebook/react-native/blob/07d090dbc6c46b8f3760dbd25dbe0540c18cb3f3/ReactAndroid/src/main/java/com/facebook/react/bridge/JavaModuleWrapper.java#L85-L86
-
-RNZendeskChatModule.init = (key, appId) => {
-	return RNZendeskChatModule._initWith2Args(key, appId || null);
+if (RNZendeskChatModule) {
+	RNZendeskChatModule.init = (key, appId) => {
+		return RNZendeskChatModule._initWith2Args(key, appId || null);
+	};
 };
 
 /**
@@ -16,4 +17,17 @@ RNZendeskChatModule.init = (key, appId) => {
  *
  * @see { ./RNZendeskChat.d.ts }
  */
-export default RNZendeskChatModule;
+export default RNZendeskChatModule || {
+	// ✅ Provide fallback methods when native module is not available
+	init: () => {
+		console.log('Zendesk Chat: Native module not available');
+		return Promise.resolve();
+	},
+	_initWith2Args: () => Promise.resolve(),
+	startChat: () => Promise.resolve(),
+	getUnreadMessageCount: () => Promise.resolve(0),
+	resetUnreadMessageCount: () => Promise.resolve(),
+	registerPushToken: () => Promise.resolve(),
+	areAgentsOnline: () => Promise.resolve(false),
+	setVisitorInfo: () => Promise.resolve(),
+};
