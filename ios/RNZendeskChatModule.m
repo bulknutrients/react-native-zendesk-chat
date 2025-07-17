@@ -697,15 +697,14 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
         
         __weak typeof(self) weakSelf = self;
         _messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
-            // Only send event if there are listeners
-            if (weakSelf->_hasListeners) {
-                [weakSelf sendEventWithName:@"unreadMessageCountChanged" 
-                                       body:@{@"count": @(numberOfUnreadMessages)}];
-            } else {
-                NSLog(@"[RNZendeskChatModule] Unread count changed to %ld but no listeners registered", (long)numberOfUnreadMessages);
+            __strong typeof(weakSelf) strongSelf = weakSelf;  // ✅ Convert to strong
+            if (!strongSelf) return;  // ✅ Check if still alive
+            
+            if (strongSelf->_hasListeners) {  // ✅ Use strong pointer
+                [strongSelf sendEventWithName:@"unreadMessageCountChanged" 
+                                    body:@{@"count": @(numberOfUnreadMessages)}];
             }
         };
-        
         // Auto-enable message counter
         [self setIsUnreadMessageCounterActive:YES];
         [_messageCounter connectToChat];
