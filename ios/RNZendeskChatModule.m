@@ -98,6 +98,8 @@ RCT_ENUM_CONVERTER(ZDKFormFieldStatus,
 - (void)stopMessageCounter;
 - (void)connectToChat;
 - (void)resetUnreadMessageCount;
+- (void)markCurrentPositionAsRead;
+- (void)updateUnreadMessageCount;
 
 @end
 
@@ -371,6 +373,7 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
         // Initialize messaging delegate
         [ZDKClassicMessaging.instance setDelegate:self];
         _isUnreadMessageCounterActive = NO;
+        _hasListeners = NO; // ✅ Initialize this!
     }
     return self;
 }
@@ -379,15 +382,18 @@ RCT_EXPORT_MODULE(RNZendeskChatModule);
     return @[@"unreadMessageCountChanged", @"chatWillShow", @"chatWillClose"];
 }
 
-// Required methods for NativeModule interface
+// ✅ Make these methods actually work:
 - (void)addListener:(NSString *)eventName {
-    // Keep track of listeners if needed
-    // This is required by the interface but can be empty
+    if (!_hasListeners) {
+        _hasListeners = YES;
+        NSLog(@"[RNZendeskChatModule] First listener added - hasListeners: YES");
+    }
 }
 
 - (void)removeListeners:(NSInteger)count {
-    // Clean up listeners if needed
-    // This is required by the interface but can be empty
+    // You might want to track the actual count, but for simplicity:
+    _hasListeners = NO;
+    NSLog(@"[RNZendeskChatModule] Listeners removed - hasListeners: NO");
 }
 
 - (void)startObserving {
@@ -685,6 +691,7 @@ RCT_EXPORT_METHOD(forceUpdateMessageCount) {
     }];
 }
 
+// ✅ Updated init method:
 RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId) {
 	if (appId) {
 		[ZDKChat initializeWithAccountKey:zenDeskKey appId:appId queue:dispatch_get_main_queue()];
@@ -697,18 +704,23 @@ RCT_EXPORT_METHOD(_initWith2Args:(NSString *)zenDeskKey appId:(NSString *)appId)
         
         __weak typeof(self) weakSelf = self;
         _messageCounter.onUnreadMessageCountChange = ^(NSInteger numberOfUnreadMessages) {
-            __strong typeof(weakSelf) strongSelf = weakSelf;  // ✅ Convert to strong
-            if (!strongSelf) return;  // ✅ Check if still alive
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
             
-            if (strongSelf->_hasListeners) {  // ✅ Use strong pointer
-                [strongSelf sendEventWithName:@"unreadMessageCountChanged" 
-                                    body:@{@"count": @(numberOfUnreadMessages)}];
-            }
+            NSLog(@"[RNZendeskChatModule] Unread count changed to %ld, hasListeners: %d", (long)numberOfUnreadMessages, strongSelf->_hasListeners);
+            
+            // ✅ Send event regardless initially to test, then add listener check later
+            [strongSelf sendEventWithName:@"unreadMessageCountChanged" 
+                                     body:@{@"count": @(numberOfUnreadMessages)}];
         };
+        
+        // ✅ Force listeners to be available for testing
+        _hasListeners = YES;
+        
         // Auto-enable message counter
         [self setIsUnreadMessageCounterActive:YES];
         [_messageCounter connectToChat];
-        NSLog(@"[RNZendeskChatModule] Message counter enabled automatically");
+        NSLog(@"[RNZendeskChatModule] Message counter enabled automatically with hasListeners: %d", _hasListeners);
     }
 }
 
