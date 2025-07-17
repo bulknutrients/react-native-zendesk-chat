@@ -394,10 +394,6 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         if (botName != null) {
             builder = builder.withBotLabelString(botName);
         }
-        int avatarDrawable = getIntOrDefault(options, "botAvatarDrawableId", "loadBotSettings", -1);
-        if (avatarDrawable != -1) {
-            builder = builder.withBotAvatarDrawable(avatarDrawable);
-        }
 
         return builder;
     }
