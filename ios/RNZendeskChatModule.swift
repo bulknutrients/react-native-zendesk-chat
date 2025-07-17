@@ -323,7 +323,7 @@ class RNZendeskChatModule: RCTEventEmitter {
     
     override init() {
         super.init()
-        ClassicMessaging.instance()?.setDelegate(self)
+        Messaging.instance()?.setDelegate(self)
         isUnreadMessageCounterActive = false
     }
     
@@ -382,8 +382,8 @@ class RNZendeskChatModule: RCTEventEmitter {
         return config
     }
     
-    private func messagingConfiguration(from options: [String: Any]?) -> ClassicMessagingConfiguration {
-        let config = ClassicMessagingConfiguration()
+    private func messagingConfiguration(from options: [String: Any]?) -> MessagingConfiguration {
+        let config = MessagingConfiguration()
         
         guard let options = options else { return config }
         
@@ -503,7 +503,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             let messagingConfig = self.messagingConfiguration(from: options["messagingOptions"] as? [String: Any])
             
             do {
-                let viewController = try ClassicMessaging.instance()?.buildUI(
+                let viewController = try Messaging.instance()?.buildUI(
                     withEngines: engines,
                     configs: [chatConfig, messagingConfig]
                 )
@@ -640,9 +640,9 @@ class RNZendeskChatModule: RCTEventEmitter {
     }
 }
 
-// MARK: - ClassicMessagingDelegate
-extension RNZendeskChatModule: ClassicMessagingDelegate {
-    func messaging(_ messaging: ClassicMessaging, didPerformEvent event: ClassicMessagingUIEvent, context: Any?) {
+// MARK: - MessagingDelegate
+extension RNZendeskChatModule: MessagingDelegate {
+    func messaging(_ messaging: Messaging, didPerformEvent event: MessagingUIEvent, context: Any?) {
         switch event {
         case .viewWillAppear:
             print("[RNZendeskChatModule] Chat will appear - pausing message counter")
@@ -668,7 +668,7 @@ extension RNZendeskChatModule: ClassicMessagingDelegate {
         }
     }
     
-    func messaging(_ messaging: ClassicMessaging, shouldOpen url: URL) -> Bool {
+    func messaging(_ messaging: Messaging, shouldOpen url: URL) -> Bool {
         return true // Default implementation opens in Safari
     }
 }

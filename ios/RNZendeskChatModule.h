@@ -1,8 +1,9 @@
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
+//
+//  RNZendeskChatModule-Bridging-Header.h
+//  
+//
+
 #import <React/RCTBridgeModule.h>
 #import <React/RCTEventEmitter.h>
-
-@interface RNZendeskChatModule : RCTEventEmitter<RCTBridgeModule>
-
-@end
+#import <React/RCTUtils.h>
+#import <React/RCTConvert.h>
