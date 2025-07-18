@@ -311,44 +311,44 @@ class RNZendeskChatModule: RCTEventEmitter {
     }
     
     @objc
-func registerPushToken(_ token: String) {
-    DispatchQueue.main.async {
-        guard let tokenData = self.dataFromHexString(token) else {
-            print("[RNZendeskChatModule] Invalid push token string: \(token)")
-            return
+    func registerPushToken(_ token: String) {
+        DispatchQueue.main.async {
+            guard let tokenData = self.dataFromHexString(token) else {
+                print("[RNZendeskChatModule] Invalid push token string: \(token)")
+                return
+            }
+
+            Chat.registerPushToken(tokenData)
+        }
+    }
+
+    /// Helper to convert hex string to Data
+    private func dataFromHexString(_ hexString: String) -> Data? {
+        var data = Data()
+        var hex = hexString
+
+        // Remove optional angle brackets and spaces
+        hex = hex.replacingOccurrences(of: "<", with: "")
+        hex = hex.replacingOccurrences(of: ">", with: "")
+        hex = hex.replacingOccurrences(of: " ", with: "")
+
+        // Ensure even-length string
+        guard hex.count % 2 == 0 else { return nil }
+
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let nextIndex = hex.index(index, offsetBy: 2)
+            guard nextIndex <= hex.endIndex else { return nil }
+
+            let byteString = String(hex[index..<nextIndex])
+            guard let num = UInt8(byteString, radix: 16) else { return nil }
+
+            data.append(num)
+            index = nextIndex
         }
 
-        Chat.registerPushToken(tokenData)
+        return data
     }
-}
-
-/// Helper to convert hex string to Data
-private func dataFromHexString(_ hexString: String) -> Data? {
-    var data = Data()
-    var hex = hexString
-
-    // Remove optional angle brackets and spaces
-    hex = hex.replacingOccurrences(of: "<", with: "")
-    hex = hex.replacingOccurrences(of: ">", with: "")
-    hex = hex.replacingOccurrences(of: " ", with: "")
-
-    // Ensure even-length string
-    guard hex.count % 2 == 0 else { return nil }
-
-    var index = hex.startIndex
-    while index < hex.endIndex {
-        let nextIndex = hex.index(index, offsetBy: 2)
-        guard nextIndex <= hex.endIndex else { return nil }
-
-        let byteString = String(hex[index..<nextIndex])
-        guard let num = UInt8(byteString, radix: 16) else { return nil }
-
-        data.append(num)
-        index = nextIndex
-    }
-
-    return data
-}
 
     // Add method to completely reset chat state if needed
     private func resetChatState() {
