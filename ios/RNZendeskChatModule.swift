@@ -93,9 +93,9 @@ class RNZendeskChatModule: RCTEventEmitter {
         }
         
         let visitorInfo = VisitorInfo(
-            name: options["name"] as? String,
-            email: options["email"] as? String,
-            phoneNumber: options["phone"] as? String
+            name: options["name"] as? String ?? "",
+            email: options["email"] as? String ?? "",
+            phoneNumber: options["phone"] as? String ?? ""
         )
         config.visitorInfo = visitorInfo
         
@@ -112,14 +112,6 @@ class RNZendeskChatModule: RCTEventEmitter {
         
         if let botName = options["botName"] as? String {
             config.name = botName
-        }
-        
-        if let botAvatarName = options["botAvatarName"] as? String {
-            config.botAvatar = UIImage(named: botAvatarName)
-        } else if let botAvatarUrl = options["botAvatarUrl"] as? String,
-                  let url = URL(string: botAvatarUrl),
-                  let data = try? Data(contentsOf: url) {
-            config.botAvatar = UIImage(data: data)
         }
         
         return config
@@ -243,7 +235,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             
             do {
                 let viewController = try Messaging.instance.buildUI(
-                    withEngines: engines,
+                    engines: engines,
                     configs: [chatConfig, messagingConfig]
                 )
                 
@@ -321,7 +313,11 @@ class RNZendeskChatModule: RCTEventEmitter {
     @objc
     func registerPushToken(_ token: String) {
         DispatchQueue.main.async {
-            Chat.registerPushToken(token)
+            if let tokenData = Data(hexString: token) {
+                Chat.registerPushToken(tokenData)
+            } else {
+                print("[RNZendeskChatModule] Invalid push token string: \(token)")
+            }
         }
     }
     
