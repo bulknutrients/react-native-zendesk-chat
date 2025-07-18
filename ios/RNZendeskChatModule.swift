@@ -1,6 +1,9 @@
 import Foundation
 import UIKit
 import React
+import ChatSDK
+import ChatProvidersSDK
+import MessagingSDK
 
 // MARK: - Custom Navigation Controller
 class CustomZendeskNavigationController: UINavigationController {
