@@ -211,16 +211,8 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
         return anyValuesWereSet;
     }
 
-    // Unfortunately, react-native: android doesn't support the following
-    // - Java's Method Overloading
-    // - automatically providing null to undefined parameters (like iOS)
-    //
-    // As a result, we need to guarantee this is always called with 2 parameters from JS
-    //
-    // This method has been renamed to make that clear, and index.js is adding the
-    //  correct interface for init() at runtime
     @ReactMethod
-    public void _initWith2Args(String key, String appId) {
+    public void initWithAccountKey(String key, String appId) {
         if (appId != null) {
             Chat.INSTANCE.init(mReactContext, key, appId);
         } else {
@@ -381,31 +373,6 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                     // There are few other statuses that you can observe but they are unused in this example
                     Log.d(TAG, "[observerSetup] - ChatSessionUpdate -> (unused) status : " + chatStatus.toString());
                 }
-            }
-        });
-    }
-
-    @ReactMethod
-    public void areAgentsOnline(final Promise promise) {
-        Chat.INSTANCE.providers().accountProvider().getAccount(new ZendeskCallback<Account>() {
-            @Override
-            public void onSuccess(Account account) {
-                AccountStatus status = account.getStatus();
-
-                switch (status) {
-                    case ONLINE:
-                        promise.resolve(true);
-                        break;
-
-                    default:
-                        promise.resolve(false);
-                        break;
-                }
-            }
-
-            @Override
-            public void onError(ErrorResponse errorResponse) {
-                promise.reject("no-available-zendesk-account", "DevError: Not connected to Zendesk or network issue");
             }
         });
     }

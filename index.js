@@ -1,33 +1,36 @@
-import { NativeModules } from "react-native";
+import { NativeModules } from 'react-native';
 
-const RNZendeskChatModule = NativeModules.RNZendeskChatModule;
+const { RNZendeskChatModule } = NativeModules;
 
-// react-native doesn't support method overloading for Java or Objective-C
-// So this code implements the init method but makes sure to
-// always call it with two defined parameters, passing null for the second as needed
-// Reference: https://github.com/facebook/react-native/blob/07d090dbc6c46b8f3760dbd25dbe0540c18cb3f3/ReactAndroid/src/main/java/com/facebook/react/bridge/JavaModuleWrapper.java#L85-L86
-if (RNZendeskChatModule) {
-	RNZendeskChatModule.init = (key, appId) => {
-		return RNZendeskChatModule._initWith2Args(key, appId || null);
-	};
+if (!RNZendeskChatModule) {
+  throw new Error(
+    'RNZendeskChatModule native module is not available. ' +
+    'Make sure the native code is properly linked and you are running on a device or simulator.'
+  );
+}
+
+// Create event emitter for the module
+// const ZendeskChatEventEmitter = new NativeEventEmitter(RNZendeskChatModule);
+
+const ZendeskChat = {
+  // Initialize Zendesk Chat
+  init: (accountKey, appId) => {
+    return RNZendeskChatModule.initWithAccountKey(accountKey, appId);
+  },
+
+  // Start chat session
+  startChat: (options) => {
+    return RNZendeskChatModule.startChat(options || {});
+  },
+
+  // Register push token
+  registerPushToken: (token) => {
+    return RNZendeskChatModule.registerPushToken(token);
+  },
+
 };
 
-/**
- * TypeScript Documentation for this Module describes the available methods & parameters
- *
- * @see { ./RNZendeskChat.d.ts }
- */
-export default RNZendeskChatModule || {
-	// ✅ Provide fallback methods when native module is not available
-	init: () => {
-		console.log('Zendesk Chat: Native module not available');
-		return Promise.resolve();
-	},
-	_initWith2Args: () => Promise.resolve(),
-	startChat: () => Promise.resolve(),
-	getUnreadMessageCount: () => Promise.resolve(0),
-	resetUnreadMessageCount: () => Promise.resolve(),
-	registerPushToken: () => Promise.resolve(),
-	areAgentsOnline: () => Promise.resolve(false),
-	setVisitorInfo: () => Promise.resolve(),
-};
+// Export the module so it can be used as a NativeEventEmitter source
+// ZendeskChat.eventEmitter = ZendeskChatEventEmitter;
+
+export default ZendeskChat;
