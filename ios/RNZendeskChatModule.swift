@@ -65,10 +65,10 @@ class CustomZendeskNavigationController: UINavigationController {
 @objc(RNZendeskChatModule)
 class RNZendeskChatModule: RCTEventEmitter {
     
-    private var visitorAPIConfig: ZDKChatAPIConfiguration?
+    private var visitorAPIConfig: ChatAPIConfiguration?
     private var chatController: CustomZendeskNavigationController?
     private var stylingTimer: Timer?
-    private var chatEngines: [ZDKChatEngine]?
+    private var chatEngines: [ChatEngine]?
     
     override init() {
         super.init()
@@ -81,7 +81,7 @@ class RNZendeskChatModule: RCTEventEmitter {
 
     // MARK: - Helper Methods
     
-    private func applyVisitorInfo(_ options: [String: Any], intoConfig config: ZDKChatAPIConfiguration) -> ZDKChatAPIConfiguration {
+    private func applyVisitorInfo(_ options: [String: Any], intoConfig config: ChatAPIConfiguration) -> ChatAPIConfiguration {
         if let department = options["department"] as? String {
             config.department = department
         }
@@ -89,7 +89,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             config.tags = tags
         }
         
-        let visitorInfo = ZDKVisitorInfo(
+        let visitorInfo = VisitorInfo(
             name: options["name"] as? String,
             email: options["email"] as? String,
             phoneNumber: options["phone"] as? String
@@ -101,8 +101,8 @@ class RNZendeskChatModule: RCTEventEmitter {
         return config
     }
     
-    private func messagingConfiguration(from options: [String: Any]?) -> ZDKClassicMessagingConfiguration {
-        let config = ZDKClassicMessagingConfiguration()
+    private func messagingConfiguration(from options: [String: Any]?) -> ClassicMessagingConfiguration {
+        let config = ClassicMessagingConfiguration()
         
         guard let options = options,
               options is [String: Any] else {
@@ -125,14 +125,14 @@ class RNZendeskChatModule: RCTEventEmitter {
         return config
     }
     
-    private func preChatFormConfiguration(from options: [String: Any]?) -> ZDKChatFormConfiguration? {
+    private func preChatFormConfiguration(from options: [String: Any]?) -> ChatFormConfiguration? {
         guard let options = options,
               options is [String: Any] else {
             print("[RNZendeskChatModule] Invalid pre-Chat-Form Configuration Options")
             return nil
         }
         
-        func parseFormFieldStatus(_ key: String) -> ZDKFormFieldStatus {
+        func parseFormFieldStatus(_ key: String) -> FormFieldStatus {
             guard let value = options[key] as? String else { return .optional }
             switch value.lowercased() {
             case "required":
@@ -146,7 +146,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             }
         }
         
-        return ZDKChatFormConfiguration(
+        return ChatFormConfiguration(
             name: parseFormFieldStatus("name"),
             email: parseFormFieldStatus("email"),
             phoneNumber: parseFormFieldStatus("phone"),
@@ -154,9 +154,9 @@ class RNZendeskChatModule: RCTEventEmitter {
         )
     }
     
-    private func chatConfiguration(from options: [String: Any]?) -> ZDKChatConfiguration {
+    private func chatConfiguration(from options: [String: Any]?) -> ChatConfiguration {
         let options = options ?? [:]
-        let config = ZDKChatConfiguration()
+        let config = ChatConfiguration()
         
         guard options is [String: Any] else {
             print("[RNZendeskChatModule] Invalid Chat Configuration Options")
@@ -222,17 +222,17 @@ class RNZendeskChatModule: RCTEventEmitter {
                 return
             }
             
-            let config = self.visitorAPIConfig ?? ZDKChatAPIConfiguration()
-            ZDKChat.instance.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
+            Chat.instance.configuration = self.applyVisitorInfo(options, intoConfig: config)
             
             let chatConfig = self.chatConfiguration(from: options)
             
             // Reuse engines if they exist and are valid
             if self.chatEngines == nil {
                 do {
-                    self.chatEngines = [try ZDKChatEngine.engine()]
+                    self.chatEngines = [try ChatEngine.engine()]
                 } catch {
-                    print("[RNZendeskChatModule] Internal Error loading ZDKChatEngine: \(error)")
+                    print("[RNZendeskChatModule] Internal Error loading ChatEngine: \(error)")
                     return
                 }
             }
@@ -242,7 +242,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             let messagingConfig = self.messagingConfiguration(from: options["messagingOptions"] as? [String: Any])
             
             do {
-                let viewController = try ZDKClassicMessaging.instance.buildUI(
+                let viewController = try ClassicMessaging.instance.buildUI(
                     withEngines: engines,
                     configs: [chatConfig, messagingConfig]
                 )
@@ -292,7 +292,7 @@ class RNZendeskChatModule: RCTEventEmitter {
                 }
                 
             } catch {
-                print("[RNZendeskChatModule] Internal Error building ZDKMessagingUI: \(error)")
+                print("[RNZendeskChatModule] Internal Error building MessagingUI: \(error)")
             }
         }
     }
@@ -312,16 +312,16 @@ class RNZendeskChatModule: RCTEventEmitter {
     @objc
     func initWithAccountKey(_ zendeskKey: String, appId: String?) {
         if let appId = appId {
-            ZDKChat.initialize(withAccountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
+            Chat.initialize(withAccountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
         } else {
-            ZDKChat.initialize(withAccountKey: zendeskKey, queue: DispatchQueue.main)
+            Chat.initialize(withAccountKey: zendeskKey, queue: DispatchQueue.main)
         }
     }
     
     @objc
     func registerPushToken(_ token: String) {
         DispatchQueue.main.async {
-            ZDKChat.registerPushTokenString(token)
+            Chat.registerPushTokenString(token)
         }
     }
     
