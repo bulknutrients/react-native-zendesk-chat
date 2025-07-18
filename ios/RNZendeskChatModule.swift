@@ -104,8 +104,8 @@ class RNZendeskChatModule: RCTEventEmitter {
         return config
     }
     
-    private func messagingConfiguration(from options: [String: Any]?) -> ClassicMessagingConfiguration {
-        let config = ClassicMessagingConfiguration()
+    private func messagingConfiguration(from options: [String: Any]?) -> MessagingConfiguration {
+        let config = MessagingConfiguration()
         
         guard let options = options,
               options is [String: Any] else {
