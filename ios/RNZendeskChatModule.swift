@@ -99,8 +99,6 @@ class RNZendeskChatModule: RCTEventEmitter {
         )
         config.visitorInfo = visitorInfo
         
-        print("[RNZendeskChatModule] Applied visitor info: department: \(config.department ?? "nil"), tags: \(config.tags ?? []), email: \(visitorInfo?.email ?? "nil"), name: \(visitorInfo?.name ?? "nil"), phone: \(visitorInfo?.phoneNumber ?? "nil")")
-        
         return config
     }
     
@@ -109,7 +107,6 @@ class RNZendeskChatModule: RCTEventEmitter {
         
         guard let options = options,
               options is [String: Any] else {
-            print("[RNZendeskChatModule] Invalid MessagingConfiguration config options")
             return config
         }
         
@@ -226,7 +223,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             }
             
             let config = self.visitorAPIConfig ?? ChatAPIConfiguration()
-            Chat.instance.configuration = self.applyVisitorInfo(options, intoConfig: config)
+            Chat.instance?.configuration = self.applyVisitorInfo(options, intoConfig: config)
             
             let chatConfig = self.chatConfiguration(from: options)
             
@@ -245,7 +242,7 @@ class RNZendeskChatModule: RCTEventEmitter {
             let messagingConfig = self.messagingConfiguration(from: options["messagingOptions"] as? [String: Any])
             
             do {
-                let viewController = try ClassicMessaging.instance.buildUI(
+                let viewController = try Messaging.instance.buildUI(
                     withEngines: engines,
                     configs: [chatConfig, messagingConfig]
                 )
@@ -315,16 +312,16 @@ class RNZendeskChatModule: RCTEventEmitter {
     @objc
     func initWithAccountKey(_ zendeskKey: String, appId: String?) {
         if let appId = appId {
-            Chat.initialize(withAccountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
+            Chat.initialize(accountKey: zendeskKey, appId: appId, queue: DispatchQueue.main)
         } else {
-            Chat.initialize(withAccountKey: zendeskKey, queue: DispatchQueue.main)
+            Chat.initialize(accountKey: zendeskKey, queue: DispatchQueue.main)
         }
     }
     
     @objc
     func registerPushToken(_ token: String) {
         DispatchQueue.main.async {
-            Chat.registerPushTokenString(token)
+            Chat.registerPushToken(token)
         }
     }
     
