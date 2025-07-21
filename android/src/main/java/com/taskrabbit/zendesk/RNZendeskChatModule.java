@@ -301,9 +301,25 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             Log.e(TAG,
                     "Zendesk Internals are undefined -- did you forget to call RNZendeskModule.init(<account_key>)?");
             return;
+        }  
+
+        // Check if there's an active chat session
+        ChatState currentState = Chat.INSTANCE.providers().chatProvider().getChatState();
+        if (currentState != null) {
+            ChatSessionStatus sessionStatus = currentState.getChatSessionStatus();
+            
+            // Only reset if session is ended or not started
+            if (sessionStatus == ChatSessionStatus.ENDED || sessionStatus == ChatSessionStatus.INITIALIZING) {
+                Log.d(TAG, "No active session (status: " + sessionStatus + ") - performing reset");
+                Chat.INSTANCE.reset();
+                currentUserTags.clear();
+            }
+        } else {
+            Log.d(TAG, "Chat state is null - performing reset");
+            Chat.INSTANCE.reset();
+            currentUserTags.clear();
         }
-        Chat.INSTANCE.reset()
-        
+         
         pendingVisitorInfo = null;
         boolean didSetVisitorInfo = _setVisitorInfo(options);
 
