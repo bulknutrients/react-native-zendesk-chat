@@ -311,9 +311,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             // Only reset if session is ended or not started
             if (sessionStatus == ChatSessionStatus.ENDED || sessionStatus == ChatSessionStatus.INITIALIZING) {
                 Log.d(TAG, "No active session (status: " + sessionStatus + ") - performing reset");
-                
-                // Try ending the chat session instead of reset
-                Chat.INSTANCE.providers().chatProvider().endChat(null);
+            
                 currentUserTags.clear();
                 
                 // Clear visitor info
@@ -322,9 +320,7 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
             }
         } else {
             Log.d(TAG, "Chat state is null - performing reset");
-            
-            // Try ending the chat session
-            Chat.INSTANCE.providers().chatProvider().endChat(null);
+
             currentUserTags.clear();
             
             // Clear visitor info
