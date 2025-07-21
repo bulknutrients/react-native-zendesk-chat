@@ -302,6 +302,8 @@ public class RNZendeskChatModule extends ReactContextBaseJavaModule {
                     "Zendesk Internals are undefined -- did you forget to call RNZendeskModule.init(<account_key>)?");
             return;
         }
+        Chat.INSTANCE.reset()
+        
         pendingVisitorInfo = null;
         boolean didSetVisitorInfo = _setVisitorInfo(options);
 
