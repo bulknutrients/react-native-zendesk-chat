@@ -1,5 +1,4 @@
 <resources>
-  <!-- Base theme for Zendesk UI -->
   <style name="ZendeskCustomToolbarTheme" parent="Theme.AppCompat.Light.DarkActionBar">
     <!-- Primary colors -->
     <item name="colorPrimary">#E79024</item>
@@ -12,5 +11,9 @@
     <!-- Toolbar styles -->
     <item name="android:windowActionBar">true</item>
     <item name="android:windowNoTitle">false</item>
+
+    <!-- Fix for edge-to-edge + status bar overlap -->
+    <item name="android:fitsSystemWindows">true</item>
+    <item name="android:statusBarColor">#E79024</item> <!-- Optional: solid color -->
   </style>
 </resources>
