@@ -1,22 +1,18 @@
 <resources>
-  <style name="ZendeskCustomToolbarTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+<style name="ZendeskCustomToolbarTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Primary colors -->
     <item name="colorPrimary">#E79024</item>
     <item name="colorPrimaryDark">#E79024</item>
     <item name="colorAccent">#007300</item>
     <item name="android:textColorPrimary">#FFFFFF</item>
-    <item name="android:windowActionBar">true</item>
-    <item name="android:windowNoTitle">false</item>
-    
-    <!-- Only target the ListView/message area, not the whole screen -->
-    <item name="android:listViewStyle">@style/ZendeskChatList</item>
-</style>
 
-<style name="ZendeskChatList" parent="android:Widget.ListView">
-    <!-- Negative margin to pull messages UP closer to header -->
-    <item name="android:layout_marginTop">-16dp</item>
-    <item name="android:paddingTop">8dp</item>
-    <item name="android:clipToPadding">false</item>
-    <item name="android:dividerHeight">0dp</item>
+    <!-- Edge-to-edge fix -->
+    <item name="android:windowTranslucentStatus">false</item>
+    <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    <item name="android:statusBarColor">@android:color/transparent</item>
+
+    <!-- Critical fix -->
+    <item name="android:fitsSystemWindows">true</item>
 </style>
 </resources>
 
