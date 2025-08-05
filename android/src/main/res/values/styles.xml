@@ -1,13 +1,12 @@
 <resources>
-<style name="ZendeskCustomToolbarTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+  <!-- Base theme for Zendesk UI -->
+  <style name="ZendeskCustomToolbarTheme" parent="Theme.AppCompat.Light.DarkActionBar">
     <!-- Primary colors -->
     <item name="colorPrimary">#E79024</item>
     <item name="colorPrimaryDark">#E79024</item>
     <item name="colorAccent">#007300</item>
+
+    <!-- Text colors -->
     <item name="android:textColorPrimary">#FFFFFF</item>
-
-    <!-- Critical fix -->
-    <item name="android:fitsSystemWindows">true</item>
-</style>
+  </style>
 </resources>
-
